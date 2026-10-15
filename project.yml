@@ -62,7 +62,9 @@ targets:
         # SideStore/AltStore rewrite app-group IDs for free accounts and record the real ones here.
         ALTAppGroups: [$(APP_GROUP_ID)]
         MGAppGroupID: $(APP_GROUP_ID)
-        UIUserInterfaceStyle: Dark
+        CFBundleURLTypes:
+          - CFBundleURLName: memorygarden
+            CFBundleURLSchemes: [memorygarden]
     entitlements:
       path: App/MemoryGarden.entitlements
       properties:

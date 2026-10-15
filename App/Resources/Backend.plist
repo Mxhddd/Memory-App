@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Optional free Supabase server for "hasn't practised yet" alerts. See docs/INSTALL.md.
+     The anon key is designed to be public; row-level security protects the data. -->
+<plist version="1.0">
+<dict>
+	<key>SUPABASE_URL</key>
+	<string>https://YOUR-PROJECT.supabase.co</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string></string>
+</dict>
+</plist>
