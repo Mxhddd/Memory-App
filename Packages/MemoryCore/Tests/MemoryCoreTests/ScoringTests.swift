@@ -96,7 +96,8 @@ final class BanditTests: XCTestCase {
 
 final class StimuliTests: XCTestCase {
     func testSpritesAreRectangularAndUsePaletteColours() {
-        let all = [Sprites.mochiIdle, Sprites.mochiHappy, Sprites.mochiSleep, Sprites.professor] + Array(Sprites.trinkets.values)
+        let all = [Sprites.mochiIdle, Sprites.mochiHappy, Sprites.mochiSleep, Sprites.mochiStudy, Sprites.professor]
+            + Array(Sprites.trinkets.values) + Array(Sprites.palaceProps.values)
         for art in all {
             XCTAssertTrue(art.rows.allSatisfy { $0.count == art.width })
             for ch in art.rows.joined() where ch != "." {

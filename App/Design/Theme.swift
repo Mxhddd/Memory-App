@@ -43,6 +43,7 @@ struct Theme {
     let mascotIdle: PixelArt
     let mascotHappy: PixelArt
     let mascotSleep: PixelArt
+    let mascotStudy: PixelArt
 
     let copy: ThemeCopy
 
@@ -102,6 +103,7 @@ extension Theme {
         mascotIdle: Sprites.mochiIdle,
         mascotHappy: Sprites.mochiHappy,
         mascotSleep: Sprites.mochiSleep,
+        mascotStudy: Sprites.mochiStudy,
         copy: .raccoon
     )
 
@@ -129,6 +131,7 @@ extension Theme {
         mascotIdle: Sprites.professor,
         mascotHappy: Sprites.professor,
         mascotSleep: Sprites.professor,
+        mascotStudy: Sprites.professor,
         copy: .atelier
     )
 }

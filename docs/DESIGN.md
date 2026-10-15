@@ -8,7 +8,7 @@
 | Mood | Cute-goth pixel night: lilac, ink, bubblegum, moon-cream | Ivory paper, ink-blue text, emerald, brass |
 | Mascot | **Mochi**, an original pixel raccoon (eye mask, ear bow, lilac hoodie) | **Professor Raccoon** with gold spectacles, purely ornamental |
 | Display font | Pixelify Sans SemiBold (OFL), headings ≥ 24 pt only | Cormorant Garamond SemiBold (OFL) |
-| Pacing | Standard, four rating buttons | Gentle: errorless learning, larger targets (60 pt), two rating buttons, slower word pacing, words read aloud |
+| Layout | Compact pixel cards, chunky borders | Roomier cards and larger targets (60 pt) |
 
 Mochi is original art. It is inspired only by the cute-goth vibe and has no Sanrio/Kuromi likeness, names or assets. Sprites are text grids in `Packages/MemoryCore/Sources/MemoryCore/Sprites.swift`; edit the rows to redraw them.
 
@@ -34,41 +34,24 @@ All pairs pass AA at 4.5:1. In the Atelier theme, the light brass `#B08D3C` is u
 - On missed days the mascot naps, with no sad faces. Goals are weekly (4 days), and missed days never reset anything.
 - At most 3 practice prompts a day (quest reminder, evening nudge, delayed recall). Reminders you set yourself are separate.
 
-## Science engine (`Packages/MemoryCore`)
-| Piece | What | Where |
-|---|---|---|
-| FSRS-6 | Spaced repetition for personal cards. Matches py-fsrs 6.3.2 exactly (tests). Desired retention: 0.92 Atelier, 0.88 Den. | `FSRS6.swift` |
-| Errorless SRT | The answer is shown first, then recalled at 30 s, 1, 2 and 4 min within the session; a miss re-shows the answer. Then the card moves to FSRS. | `Errorless.swift` |
-| Bursts | A 7-day baseline, then 7 days every 4 weeks, at fixed difficulty with the **same stimuli all week**. | `BurstPlanner.swift` |
-| Learning curve | y = A − (A − y₁)e^(−λ(d−1)), MDLC-style AUC, practice gain = mean(days 5–7) − day 1 | `LearningCurve.swift` |
-| Reliable change | Jacobson–Truax, Chelune practice-adjusted (*verify against Chelune 1993*), McSweeny SRB | `ReliableChange.swift` |
-| EWMA | λ = 0.2, L = 2.7 over the person-relative daily composite | `EWMA.swift` |
-| Doctor card | Requires **all** of: EWMA breach, practice-adjusted change below −1.645 on 2 bursts at least 28 days apart, and no logged poor sleep, illness or low mood that week | `EscalationPolicy.swift` |
-| Garden Index | Weighted domain z-scores (0.25 / 0.20 / 0.20 / 0.15 / 0.10 / 0.10), shown only as den growth | `GardenIndex.swift` |
-| Adaptive training | Rasch θ by EAP, targeting 75% success (90% in gentle mode). Training days only, so measurement stays constant. | `Rasch.swift` + `GameSupport.swift` |
-| Speed module | About 10 sessions in the first 6 weeks, then boosters at 11 and 35 months (ACTIVE) | `BurstPlanner.swift` (`SpeedSchedule`) |
-| JITAI bandit | Thompson sampling and a 60/40 micro-randomised prompt (ready, not yet wired into timing) | `Bandit.swift` |
+## Training science (`Packages/MemoryCore`)
 
-### Tasks
-| Domain | Den | Atelier | Notes |
+| Module | Evidence | How the app does it | Code |
 |---|---|---|---|
-| Face–name | Night Market Regulars | Salon Portraits | Procedurally generated 12×12 pixel villagers, with no licensing issues |
-| Pair learning | Ancient Runes | Old Scripts | Invented symmetric runes (ORCA-LLT-style, no prior knowledge) |
-| Item–price | Midnight Snack Prices | Market Ledger | BRANCH-style |
-| Word list | Moonlit Shopping List | Letter Recall | 12 words, recognition among 24, **+20 min delayed recall** |
-| Object–location | Mochi's Stash | Cabinet of Curiosities | |
-| Working memory | Firefly Sequences | Constellations | Adaptive span |
-| Speed | Rune Sort | Seal Matching | Digit–symbol-style |
-| Prospective | Moon Bell | Brass Bell | Embedded cue during another game |
+| **Memory Palace course** | Dresler et al. 2017 (*Neuron*): 40 days × 30 min of method-of-loci training took recall of 72 words from ~26 to ~62. Connectivity shifted toward memory athletes' patterns, and the gain lasted 4 months. Wagner et al. 2021 (*Sci. Adv.*) found more efficient encoding afterwards. | Week 1: imagery and first palace. Week 2: Major system. Weeks 3–6: sprints grow +5 words or +4 digits at ≥ 80% in-place accuracy. The course advances only on days you train. | `Course.swift`, `Loci.swift`, `MajorSystem.swift`, `WordBank.swift` |
+| **Consolidation check** | Retrieval after sleep shows what was consolidated; retrieval practice strengthens memory (the testing effect). | The next day, the same sprint is recalled again. | `Quest.yesterdaysSprint` |
+| **Dual n-back** | Jaeggi et al. 2008 protocol. It reliably improves the trained skill; far transfer is debated (Melby-Lervåg & Hulme 2016; Sala & Gobet 2017). | 20 + n trials, 6 targets per modality (2 dual). Level goes up at < 3 errors per modality and down at > 5. | `NBack.swift` |
+| **Operation span** | Conway et al. 2005 partial-credit scoring. | Set sizes 3–6, processing must stay ≥ 85% accurate, 6 s limit per equation. | `ComplexSpan.swift` |
+| **Vault** | Spacing plus retrieval practice; the generation effect. FSRS-6 matches py-fsrs exactly. | Typed answers, interleaved decks, new cards capped, warm-up time-boxed. | `FSRS6.swift`, `VaultImport.swift` |
+| **Benchmarks** | Transfer is the honest test. | 30-word free recall (6 alternate forms, never practised) and forward digit span, on days 0/14/28/42, then monthly. "Reliably improved" requires a practice-adjusted RCI > 1.645. | `Course.swift` (`BenchmarkPlanner`, `Improvement`) |
+| **Arcade** | Associative binding practice. | Rasch-adaptive difficulty (target 75%). | `Rasch.swift`, `Stimuli.swift` |
 
-### Wording guardrail (FDA general-wellness, January 2026 guidance)
-Use: "memory training", "brain fitness", "track your practice", "talk to your doctor".
-Never use: "detects", "risk score", "MCI", "Alzheimer's", "dementia", "diagnoses".
+Runes must have at least 10 cells and span at least 4 rows and 4 columns (re-rolled otherwise, with a test).
 
-## Licensing to-dos
-- The PRMQ (Edinburgh) and MMQ (Baycrest) are **not** shipped. The app uses original everyday-memory items. Email the authors before swapping them in.
-- PHQ-9 and GAD-7 are free to use. A positive PHQ-9 item 9 shows crisis resources immediately (1122 and findahelpline.com).
-- The PSQI is not used; the daily check-in replaces it.
+### Wording
+Use "train memory techniques and working memory". Never claim it prevents or treats disease, or "raises IQ". The gym's limits are stated in the app.
 
-## Roadmap (M4)
-Bandit-timed reminders, N-of-1 "experiment" cards, HealthKit sleep as a covariate, Urdu localisation (String Catalogs).
+## Roadmap
+- Card memorisation (PAO system).
+- Bandit-timed reminders (`Bandit.swift` is ready).
+- Urdu localisation (String Catalogs).

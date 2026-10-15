@@ -1,127 +1,109 @@
-# Installing Memory Garden for free
+# Installing Memory Garden (free, no Mac needed)
 
-No $99 Apple Developer Program, no App Store, no paid push. Three phones are involved:
+GitHub builds the app in the cloud. Your girlfriend sets up both iPhones (hers and her mom's) once on her **Windows laptop**. After that, updates and refreshes happen on the phones by themselves.
 
-| Phone | Gets | How |
+| Who | Gets | How |
 |---|---|---|
-| **Yours** | Alerts about your girlfriend's practice | The free **ntfy** app (App Store). Memory Garden itself is optional. |
-| **Girlfriend's** | Memory Garden (Midnight Den 🦝), plus alerts about Mom | **SideStore** (refreshes itself) and **ntfy** |
-| **Mom's** | Memory Garden (Gilded Atelier) | **SideStore** |
-
-Total one-time effort is about 20–30 minutes per phone, with the phone plugged into your Mac.
+| **You** | Pings when your girlfriend trains | The free **ntfy** app (App Store). No computer needed. |
+| **Girlfriend** | Memory Garden 🦝, plus pings about Mom | **SideStore** + **ntfy** (one-time setup on her laptop) |
+| **Mom** | Memory Garden (Gilded Atelier) | **SideStore** (set up on the same laptop) |
 
 ---
 
-## 0. One-time setup on your Mac
+## Part 1 — You, once (about 5 minutes, on any computer or a phone browser)
 
-1. Install **Xcode 26** from the Mac App Store and open it once to accept the licence.
-2. Install XcodeGen: `brew install xcodegen` (Homebrew: https://brew.sh).
-3. In Xcode, go to **Settings → Accounts → +** and add your Apple ID. A free account is fine; Xcode creates a "Personal Team" for it.
-4. Clone this repo and run:
-   ```bash
-   xcodegen generate
-   open MemoryGarden.xcodeproj
-   ```
-5. Select the **MemoryGarden** target, open **Signing & Capabilities**, and choose your Personal Team as the Team. Do the same for the **MemoryGardenWidgets** target.
-   - If Xcode says the bundle ID is unavailable, change `APP_BUNDLE_ID` and `APP_GROUP_ID` in `project.yml` (for example to `com.yourname.memorygarden`), then run `xcodegen generate` again.
-   - If Xcode refuses the **Time Sensitive Notifications** capability on a free team, delete the `com.apple.developer.usernotifications.time-sensitive` line in `project.yml` and regenerate. Reminders still arrive; they just can't break through Focus modes.
+### 1a. Create the public download repo
+1. On GitHub, click **New repository**. Name it `memory-garden-releases`, make it **Public**, and tick **Add a README**.
+   - Only the finished app file goes here. The code stays private.
 
-## 1. Your own phone, straight from Xcode (fastest for testing)
+### 1b. Let the build publish into it
+1. Go to GitHub → your avatar → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+   - Repository access: **Only select repositories** → `memory-garden-releases`.
+   - Permissions: **Contents: Read and write**.
+2. Copy the token. In the private **Memory-App** repo, go to **Settings → Secrets and variables → Actions → New repository secret**.
+   - Name: `RELEASES_TOKEN`, value: the token.
 
-1. Plug the iPhone into the Mac and tap **Trust**.
-2. On the iPhone, open **Settings → Privacy & Security → Developer Mode**, turn it on, and restart.
-3. In Xcode, pick your iPhone as the run destination and press **▶ Run**.
-4. The first launch is blocked. On the iPhone, open **Settings → General → VPN & Device Management → [your Apple ID] → Trust**.
+### 1c. Publish a version
+- In Memory-App, go to **Releases → Draft a new release** and create the tag `v0.2.0` on the branch. Or ask Claude to push the tag.
+- The **Build iOS app** workflow (about 10 minutes) builds the app and puts it in `memory-garden-releases`, along with `sidestore-source.json`.
+- Your source link is: `https://raw.githubusercontent.com/<your-username>/memory-garden-releases/main/sidestore-source.json`
 
-> Free signing lasts **7 days**. To refresh, plug the phone in and press Run again; your data is kept. For phones you can't plug in every week, use SideStore (next section).
+> Every push also builds the app, as a compile check. The file is under **Actions → the run → Artifacts** if you ever want it directly.
 
-## 2. Girlfriend's and Mom's phones: SideStore (refreshes itself, lowest effort)
+---
 
-SideStore installs apps with a free Apple ID and **re-signs them on the phone itself** every few days, so nobody has to plug in weekly. The only computer step is the first install.
+## Part 2 — Girlfriend's Windows laptop, once per phone (about 20 minutes each)
 
-### 2a. Build the app file (IPA) on your Mac
-```bash
-./distribution/build-ipa.sh      # → build/MemoryGarden.ipa
-```
+### 2a. Install on the laptop (first time only)
+1. **iTunes from Apple's website**: https://www.apple.com/itunes/ → "Download iTunes for Windows". Use the website version, not the Microsoft Store one, because it includes the iPhone USB driver.
+2. **iloader** from its only official sources: https://iloader.app or https://github.com/nab138/iloader/releases. Install it.
 
-### 2b. Install SideStore (once per phone, phone plugged into your Mac)
-1. On the iPhone, set a **passcode** if it has none. The VPN step requires it.
-2. Download **iloader** from its official sources only: https://github.com/nab138/iloader or https://iloader.app.
-3. Open iloader with the phone connected, sign in with an Apple ID and choose **Install SideStore**. iloader also places the pairing file on the phone automatically.
-   - Use a **free Apple ID made just for this** (one per phone is simplest) rather than anyone's main account.
-4. On the iPhone, open **Settings → General → VPN & Device Management** and trust the developer profile.
-5. Install **LocalDevVPN** from the App Store. SideStore uses it to refresh apps on Wi-Fi.
-6. Open SideStore, go to **Settings**, and sign in with the same Apple ID.
+### 2b. Set up a phone
+1. On the iPhone, set a **passcode** if it has none (Settings → Face ID & Passcode). The setup needs one.
+2. Plug the iPhone into the laptop with a cable. On the phone, tap **Trust** and enter the passcode.
+3. Open **iloader**.
+   1. Sign in with an Apple ID. A **free, separate Apple ID per phone** is best (make one at appleid.apple.com), so nobody's main account is used.
+   2. Choose **Install SideStore**. iloader installs it and places the pairing file automatically.
+4. On the iPhone, go to **Settings → General → VPN & Device Management**, tap the Apple ID, then **Trust**.
+5. Install **LocalDevVPN** from the App Store, open it, and tap **Connect**. SideStore uses it to refresh apps over Wi-Fi.
+6. Open **SideStore** and sign in with the same Apple ID if it asks.
+7. In SideStore, go to **Sources → +** and paste the source link from step 1c. Open the source and tap **Get** on Memory Garden.
+8. Unplug the phone. Done: open Memory Garden and pick a style.
 
-> The official SideStore docs are at https://docs.sidestore.io. If anything above changed, follow those.
+Repeat 2b with Mom's phone. If possible, use a second free Apple ID for her phone.
 
-### 2c. Install Memory Garden
-- **Phone nearby:** AirDrop `build/MemoryGarden.ipa` to it, then tap **Share → SideStore** (or *Open in SideStore*), then **Install**.
-- **Phone far away (Mom):** send the `.ipa` over WhatsApp or Google Drive. On the phone, save it to **Files**, open SideStore, go to **My Apps → +**, and pick the file.
+### 2c. After that (no laptop needed)
+- **Refresh:** SideStore re-signs apps in the background every few days when the phone is on Wi-Fi and LocalDevVPN is connected. Add SideStore's widget to see the days left. If 7 days pass without a refresh, open SideStore and tap **Refresh All**. **No data is lost**.
+- **Updates:** when a new version is published, SideStore shows an **Update** button. One tap.
 
-### 2d. Keep it alive
-- SideStore refreshes apps in the background whenever **LocalDevVPN is connected on Wi-Fi**. Its widget shows the days left; add it to the Home Screen.
-- If 7 days pass without a refresh, Memory Garden won't open until you open SideStore and tap **Refresh All**. **Nothing is lost.**
+### Free-account limits (the app is designed around them)
+- **3 active apps per phone per Apple ID.** SideStore, Memory Garden and its widget use exactly 3, so don't sideload other apps with the same Apple ID on that phone.
+- **10 new app installs per Apple ID per week.** Updates and refreshes don't count; reinstalling from scratch does.
 
-### Free-account limits (designed around them)
-- **3 active apps per phone:** SideStore, Memory Garden and Memory Garden's widget extension count as exactly 3. That's why the app has only **one** extension. Don't sideload other apps with the same Apple ID on that phone.
-- **10 new app IDs per week:** reinstalling many times in a row can hit this. Wait a few days, or use the "refresh" option instead of reinstalling.
+---
 
-### Optional: one-tap updates
-SideStore can't read private GitHub repos, so:
-1. Create a small **public** repo, for example `memory-garden-releases`.
-2. Upload `distribution/icon.png` and `distribution/sidestore-source.json` to it, with `YOUR-GITHUB-USER` replaced.
-3. For each new version, create a GitHub Release (tag `v0.1.0`), attach `MemoryGarden.ipa`, and update `version`, `date` and `size` in the JSON. The script prints the size.
-4. On each phone, open **SideStore → Sources → +** and paste the raw URL of `sidestore-source.json`. Updates then appear in SideStore.
+## Part 3 — Alerts between you (free, ntfy)
 
-## 3. Alerts between people: ntfy (free)
+1. Install **ntfy** from the App Store on **your** phone and your **girlfriend's** phone.
+2. On the girlfriend's phone, open Memory Garden → **Progress → Your circle**, type your name, and tap **Add**. A QR code and topic appear. Tap **Send the link** and send it to you.
+3. On your phone, open ntfy, tap **+**, enter the topic on server **ntfy.sh** (or open the link), and **Subscribe**. Then tap **Send a test alert** in Memory Garden.
+4. On **Mom's** phone, add your girlfriend the same way. She subscribes on her phone.
+5. Optional: enter the trainee's WhatsApp number in **Your circle** (country code, no `+`, e.g. `923001234567`). Alerts then get a free **"Send a cheer 💌"** button.
 
-1. Install **ntfy** from the App Store on **your** phone and on your **girlfriend's** phone.
-2. On the girlfriend's phone, in Memory Garden, go to **Den → Your circle → Add** (for example "Ali"). A QR code and a topic name appear.
-3. On your phone, open ntfy, tap **+**, enter the topic (for example `mg-k3x…`) on server **ntfy.sh**, and subscribe. Or just open the shared link.
-4. Tap **Send a test alert** in Memory Garden. It should pop up on your phone within seconds.
-5. Do the same on **Mom's** phone, adding the girlfriend as Mom's supporter, and subscribe to that topic in ntfy on the girlfriend's phone.
-6. Optional: in **Your circle**, enter the trainee's WhatsApp number (country code, no `+`, for example `923001234567`). Alerts then get a **"Send a cheer 💌"** button that opens WhatsApp. It's free because it uses the supporter's own WhatsApp.
+Without a server you get **"✨ trained today"** pings. For **"🌙 not yet today"** and Sunday summaries, add the free Supabase server below, because a phone can't report a session that didn't happen.
 
-Without a server, supporters get **"✨ done today"** alerts, sent straight from the phone. For **"🌙 not yet today"** and the Sunday summary, set up the free server below, because a phone can't report what it didn't do.
+## Part 4 — Optional free server (Supabase)
 
-## 4. Optional: free Supabase server (for "not yet today" and weekly summaries)
-
-1. Create a free project at https://supabase.com. Pick a region near Pakistan, such as Mumbai or Singapore.
+1. Create a free project at https://supabase.com. Mumbai or Singapore are the nearest regions.
 2. Go to **Database → Extensions** and enable **pg_net** and **pg_cron**.
 3. Go to **Authentication → Sign In / Providers** and turn on **Allow anonymous sign-ins**.
-4. In **SQL Editor**, paste all of `backend/supabase/migrations/001_init.sql` and run it.
-5. In **Project Settings → API**, copy the **Project URL** and the **anon public** key. Then either:
-   - put them in `App/Resources/Backend.plist` before building (simplest), or
-   - type them on each phone under **Settings → Circle server**.
-6. Open **Den → Your circle** on each trainee's phone. It should say "Server connected".
+4. In **SQL Editor**, paste all of `backend/supabase/migrations/001_init.sql` and click **Run**.
+5. Under **Project Settings → API**, copy the **Project URL** and the **anon public** key. Then on each phone, open Memory Garden → **Settings → Circle server** and paste them.
+   - Alternatively, put them in `App/Resources/Backend.plist` before tagging a release.
 
-Notes:
-- The anon key is meant to be public. Row-level security means each phone can only touch its own rows, and the server only ever stores practised yes/no, counts and ntfy topics.
-- Free projects **pause after 7 days without activity**. Daily practice keeps the project awake. If it does pause, open the dashboard and click **Restore**.
-- Holidays: set `paused_until` on the trainee's row in **Table Editor** to stop "not yet" alerts until that date.
+Free projects pause after 7 quiet days. Daily training keeps the project awake; if it does pause, click **Restore** in the dashboard.
 
-## 5. Day-1 checklist (the capability spike)
+## Day-1 checklist
 
-After the first SideStore install, check each of these on the phone and note the results:
-
+- [ ] The app opens and onboarding works.
 - [ ] Notifications arrive. Go to **Settings → tap Version 5× → Debug tools → Fire test reminders**, then lock the phone.
-- [ ] **Done / Snooze / Tonight** buttons work on a reminder: long-press the notification.
-- [ ] The widget shows real data, not the sample. If Debug tools says "App Group unavailable", the widget falls back to sample data. Report it, because a SideStore update usually fixes it.
-- [ ] The Lock Screen Live Activity appears when you open the app before finishing the quest.
-- [ ] On iOS 26: a reminder set to **Alarm** rings while the phone is on silent.
+- [ ] **Done / Snooze / Tonight** buttons work: long-press a reminder notification.
+- [ ] Add the Home Screen widget. It shows real progress, not sample data. If **Debug tools** says "App Group unavailable", tell Claude.
+- [ ] n-back speaks letters (sound on, not silent).
 - [ ] ntfy test alert arrives on the supporter's phone.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| App won't open ("no longer available") | Open SideStore and tap **Refresh All** while on Wi-Fi with LocalDevVPN connected. |
-| SideStore refresh fails | Open LocalDevVPN and tap **Connect**. Use Wi-Fi, not cellular. If it still fails, regenerate the pairing file with iloader. |
-| "Maximum number of apps" | The free account allows 3 active apps per phone. Remove other sideloaded apps signed with that Apple ID. |
-| No reminders | Check **iPhone Settings → Notifications → Memory Garden** is on, then open the app once; it re-plans 7 days ahead each time it opens. |
-| Supporter gets nothing | Check the topic matches exactly in ntfy, then send a test alert from **Your circle**. |
+| iloader doesn't see the iPhone | Reinstall iTunes from apple.com, try another cable or port, and tap **Trust** on the phone. |
+| "Maximum number of apps" | The free Apple ID allows 3 active apps on that phone. Remove other sideloaded apps signed with that ID. |
+| App won't open ("no longer available") | Open SideStore and tap **Refresh All** on Wi-Fi with LocalDevVPN connected. |
+| Refresh keeps failing | In LocalDevVPN tap **Connect**, then retry on Wi-Fi. Still failing? Plug into the laptop and re-run iloader to refresh the pairing file. |
+| Build failed on GitHub | Open **Actions → the red run** and share the log with Claude. |
 
-## If you ever decide to pay ($99/yr)
-
-The code doesn't change. You'd get **TestFlight**, where builds last 90 days and you install through a link with no SideStore, real push notifications, CloudKit sync, and no 7-day refresh. The App Store route also needs a privacy policy and general-wellness wording, which `docs/PRIVACY.md` and the app already follow.
+## Developer note (only if you have a Mac)
+```bash
+brew install xcodegen && xcodegen generate && open MemoryGarden.xcodeproj
+```
+Pick your free Personal Team under **Signing & Capabilities** and press Run.

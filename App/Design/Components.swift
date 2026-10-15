@@ -145,7 +145,7 @@ struct ChoiceButtonStyle: ButtonStyle {
 
 // MARK: Mascot
 
-enum MascotMood { case idle, happy, sleepy }
+enum MascotMood { case idle, happy, sleepy, studying }
 
 struct MascotView: View {
     @Environment(\.theme) private var theme
@@ -160,6 +160,7 @@ struct MascotView: View {
             case .idle: return theme.mascotIdle
             case .happy: return theme.mascotHappy
             case .sleepy: return theme.mascotSleep
+            case .studying: return theme.mascotStudy
             }
         }()
         PixelSpriteView(art: art)

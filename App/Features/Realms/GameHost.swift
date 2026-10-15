@@ -65,7 +65,7 @@ struct GameHost: View {
     private var intro: some View {
         ScrollView {
             VStack(spacing: 20) {
-                MascotView(mood: .idle, size: 110).padding(.top, 48)
+                MascotView(mood: .studying, size: 110).padding(.top, 48)
                 Text(theme.copy.realmName(ctx.task))
                     .font(theme.display(32))
                     .foregroundStyle(theme.text)
