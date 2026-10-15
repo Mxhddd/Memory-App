@@ -1,0 +1,248 @@
+import SwiftUI
+import MemoryCore
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// Two themes, one codebase. Each phone's profile picks one; all game logic and scoring is shared.
+enum ThemeID: String, CaseIterable, Codable, Identifiable {
+    case midnightRaccoon
+    case gildedAtelier
+
+    var id: String { rawValue }
+}
+
+struct Theme {
+    let id: ThemeID
+
+    // Colours (all text/background pairs checked for ≥ 4.5:1 contrast — see docs/DESIGN.md)
+    let background: Color
+    let backgroundTop: Color
+    let surface: Color
+    let raised: Color
+    let primary: Color
+    let onPrimary: Color
+    let accent: Color
+    let text: Color
+    let secondaryText: Color
+    let success: Color
+    let outline: Color
+    let ornament: Color
+    let colorScheme: ColorScheme
+
+    // Typography
+    let displayFontName: String     // pixel (raccoon) or serif display (atelier) — headings ≥ 24 pt only
+    let fallbackDesign: Font.Design
+
+    // Shape & feel
+    let cornerRadius: CGFloat
+    let pixelBorders: Bool
+    let largeTargets: Bool          // extra-large cards & buttons (Atelier / Mom)
+
+    // Mascot
+    let mascotIdle: PixelArt
+    let mascotHappy: PixelArt
+    let mascotSleep: PixelArt
+
+    let copy: ThemeCopy
+
+    /// Display face for headings. Never used below 24 pt; scales with Dynamic Type.
+    func display(_ size: CGFloat = 30) -> Font {
+        let s = max(size, 24)
+        if Self.fontAvailable(displayFontName) {
+            return .custom(displayFontName, size: s, relativeTo: .title)
+        }
+        return .system(size: s, weight: .bold, design: fallbackDesign)
+    }
+
+    /// Body copy is always the system font so Dynamic Type & Bold Text work everywhere.
+    var body: Font { largeTargets ? .title3 : .body }
+    var bodyEmphasis: Font { (largeTargets ? Font.title3 : .body).weight(.semibold) }
+    var caption: Font { largeTargets ? .body : .subheadline }
+    var minTouch: CGFloat { largeTargets ? 60 : 48 }
+
+    static func fontAvailable(_ name: String) -> Bool {
+        #if canImport(UIKit)
+        return UIFont(name: name, size: 12) != nil
+        #else
+        return false
+        #endif
+    }
+
+    static func forID(_ id: ThemeID) -> Theme {
+        switch id {
+        case .midnightRaccoon: return .midnightRaccoon
+        case .gildedAtelier: return .gildedAtelier
+        }
+    }
+}
+
+extension Theme {
+    /// Cute-goth pixel world for the girlfriend: lilac/ink/bubblegum, Mochi the raccoon.
+    static let midnightRaccoon = Theme(
+        id: .midnightRaccoon,
+        background: Color(hex: 0x1B1626),
+        backgroundTop: Color(hex: 0x2A2142),
+        surface: Color(hex: 0x2A2238),
+        raised: Color(hex: 0x362C48),
+        primary: Color(hex: 0xF4A7C6),
+        onPrimary: Color(hex: 0x1B1626),
+        accent: Color(hex: 0xB9A3E3),
+        text: Color(hex: 0xFFF4D6),
+        secondaryText: Color(hex: 0xCFC3E6),
+        success: Color(hex: 0x9FE3C8),
+        outline: Color(hex: 0x0E0B14),
+        ornament: Color(hex: 0xFFE08A),
+        colorScheme: .dark,
+        displayFontName: "PixelifySansMG-SemiBold",
+        fallbackDesign: .monospaced,
+        cornerRadius: 6,
+        pixelBorders: true,
+        largeTargets: false,
+        mascotIdle: Sprites.mochiIdle,
+        mascotHappy: Sprites.mochiHappy,
+        mascotSleep: Sprites.mochiSleep,
+        copy: .raccoon
+    )
+
+    /// Elegant, calm and highly legible for Mom: ivory paper, ink-blue text, emerald & brass.
+    static let gildedAtelier = Theme(
+        id: .gildedAtelier,
+        background: Color(hex: 0xF7F1E3),
+        backgroundTop: Color(hex: 0xEFE6D0),
+        surface: Color(hex: 0xFFFBF2),
+        raised: Color(hex: 0xF1E8D4),
+        primary: Color(hex: 0x1F5C4A),
+        onPrimary: Color(hex: 0xFFFBF2),
+        accent: Color(hex: 0x1E2A44),
+        text: Color(hex: 0x1E2A44),
+        secondaryText: Color(hex: 0x4A5368),
+        success: Color(hex: 0x1F5C4A),
+        outline: Color(hex: 0xB08D3C),
+        ornament: Color(hex: 0xB08D3C),
+        colorScheme: .light,
+        displayFontName: "CormorantGaramondMG-SemiBold",
+        fallbackDesign: .serif,
+        cornerRadius: 18,
+        pixelBorders: false,
+        largeTargets: true,
+        mascotIdle: Sprites.professor,
+        mascotHappy: Sprites.professor,
+        mascotSleep: Sprites.professor,
+        copy: .atelier
+    )
+}
+
+/// Theme-specific names and voice. Wording follows the general-wellness guardrail:
+/// "memory training", "brain fitness", "track your practice" — never diagnostic language.
+struct ThemeCopy {
+    let appTitle: String
+    let questTitle: String
+    let denTitle: String
+    let shinyName: String
+    let realmNames: [RealmTask: String]
+    let realmBlurbs: [RealmTask: String]
+    let celebrations: [String]
+    let napLine: String
+    let eveningSession: String
+    let morningSession: String
+
+    func realmName(_ t: RealmTask) -> String { realmNames[t] ?? t.rawValue }
+    func realmBlurb(_ t: RealmTask) -> String { realmBlurbs[t] ?? "" }
+
+    func greeting(name: String, mascot: String, hour: Int) -> String {
+        switch hour {
+        case 5..<12: return "Morning, \(name). \(mascot) is up early for you."
+        case 12..<17: return "Hi \(name)! \(mascot) saved you a snack."
+        case 17..<22: return "Evening, \(name). \(eveningSession) time?"
+        default: return "Late night, \(name). \(mascot) is keeping watch."
+        }
+    }
+
+    static let raccoon = ThemeCopy(
+        appTitle: "Midnight Den",
+        questTitle: "Tonight's Quest",
+        denTitle: "The Den",
+        shinyName: "shinies",
+        realmNames: [
+            .faceName: "Night Market Regulars",
+            .snackPrices: "Midnight Snack Prices",
+            .wordList: "Moonlit Shopping List",
+            .stash: "Mochi's Stash",
+            .sequences: "Firefly Sequences",
+            .runeSort: "Rune Sort",
+            .moonBell: "Moon Bell",
+            .ancientRunes: "Ancient Runes",
+        ],
+        realmBlurbs: [
+            .faceName: "Remember the regulars at the night market.",
+            .snackPrices: "How much was that donut again?",
+            .wordList: "Hold on to the shopping list.",
+            .stash: "Where did Mochi hide everything?",
+            .sequences: "Follow the fireflies in order.",
+            .runeSort: "Match runes to numbers — quick paws!",
+            .moonBell: "When the moon peeks out, ring the bell.",
+            .ancientRunes: "Learn what the old runes mean.",
+        ],
+        celebrations: ["Shiny get! ✨", "Mochi is so proud", "Tiny brain sparkle", "Den got cozier", "Paws up!"],
+        napLine: "Mochi took a nap. No worries — the den is right where you left it.",
+        eveningSession: "Night Shift",
+        morningSession: "Dawn Check"
+    )
+
+    static let atelier = ThemeCopy(
+        appTitle: "Gilded Atelier",
+        questTitle: "Today's Practice",
+        denTitle: "The Atelier",
+        shinyName: "gilded seals",
+        realmNames: [
+            .faceName: "Salon Portraits",
+            .snackPrices: "Market Ledger",
+            .wordList: "Letter Recall",
+            .stash: "Cabinet of Curiosities",
+            .sequences: "Constellations",
+            .runeSort: "Seal Matching",
+            .moonBell: "Brass Bell",
+            .ancientRunes: "Old Scripts",
+        ],
+        realmBlurbs: [
+            .faceName: "Remember the guests at the salon.",
+            .snackPrices: "Recall the prices in the ledger.",
+            .wordList: "Keep the letter's words in mind.",
+            .stash: "Where was each treasure placed?",
+            .sequences: "Retrace the stars in order.",
+            .runeSort: "Match each seal to its number.",
+            .moonBell: "When the bell appears, tap it.",
+            .ancientRunes: "Learn the meaning of old letters.",
+        ],
+        celebrations: ["Beautifully done", "Well remembered", "A fine effort", "Splendid"],
+        napLine: "The atelier waited patiently. Welcome back.",
+        eveningSession: "Evening study",
+        morningSession: "Morning review"
+    )
+}
+
+// MARK: Environment
+
+private struct ThemeKey: EnvironmentKey {
+    static let defaultValue: Theme = .midnightRaccoon
+}
+
+extension EnvironmentValues {
+    var theme: Theme {
+        get { self[ThemeKey.self] }
+        set { self[ThemeKey.self] = newValue }
+    }
+}
+
+extension Color {
+    init(hex: UInt32, opacity: Double = 1) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
+            opacity: opacity
+        )
+    }
+}

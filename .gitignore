@@ -1,0 +1,12 @@
+.DS_Store
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+.build/
+.swiftpm/
+Packages/MemoryCore/.build/
+Packages/MemoryCore/.swiftpm/
+*.ipa
+backend/supabase/.temp/
