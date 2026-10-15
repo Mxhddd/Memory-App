@@ -54,6 +54,7 @@ targets:
         UILaunchScreen:
           UIColorName: AccentColor
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIRequiresFullScreen: true
         UIAppFonts: [PixelifySans-SemiBold.ttf, CormorantGaramond-SemiBold.ttf]
         NSSupportsLiveActivities: true
         NSAlarmKitUsageDescription: Memory Garden uses alarms only for reminders you set yourself, so they can ring even when your phone is on silent.
