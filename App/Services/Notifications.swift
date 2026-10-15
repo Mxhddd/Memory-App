@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import SwiftData
 import MemoryCore
 
 /// Local notifications — fully available on a free Apple ID.
@@ -205,11 +206,9 @@ enum Notifications {
     }
 }
 
-import SwiftData
-
 enum FetchDescriptorFactory {
     static func activeIntentions() -> FetchDescriptor<Intention> {
-        FetchDescriptor<Intention>(predicate: #Predicate { $0.active }, sortBy: [SortDescriptor(\.time)])
+        FetchDescriptor<Intention>(predicate: #Predicate { $0.active == true }, sortBy: [SortDescriptor(\.time)])
     }
 
     static func intention(_ id: UUID) -> FetchDescriptor<Intention> {

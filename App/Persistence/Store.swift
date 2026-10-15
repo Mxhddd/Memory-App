@@ -10,7 +10,7 @@ enum Store {
 
     /// Local-only store (no CloudKit — that needs a paid developer account).
     static let container: ModelContainer = {
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .none)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, groupContainer: .none, cloudKitDatabase: .none)
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {

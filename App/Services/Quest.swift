@@ -33,7 +33,7 @@ enum Quest {
     static func todaysSessions(_ date: Date = Date()) -> [TaskSession] {
         let start = Calendar.current.startOfDay(for: date)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
-        let d = FetchDescriptor<TaskSession>(predicate: #Predicate { $0.date >= start && $0.date < end && !$0.isDelayedRecall })
+        let d = FetchDescriptor<TaskSession>(predicate: #Predicate { $0.date >= start && $0.date < end && $0.isDelayedRecall == false })
         return (try? Store.context.fetch(d)) ?? []
     }
 
@@ -96,7 +96,7 @@ enum Quest {
     }
 
     static func delayedRecallContext(_ pending: DelayedRecall.Pending, profile: Profile) -> GameContext {
-        GameContext(task: .wordList, seed: pending.seed, burst: pending.burst >= 0 ? (pending.burst, pending.burstDay) : nil,
+        GameContext(task: .wordList, seed: pending.seed, burst: pending.burst >= 0 ? (burst: pending.burst, day: pending.burstDay) : nil,
                     level: 2, gentle: profile.errorlessNewCards, moonBell: false, wordForm: pending.form, delayedRecall: true)
     }
 
@@ -173,7 +173,7 @@ enum Quest {
 
     /// Consecutive weeks (Mon–Sun) with ≥ 4 quest days — forgiving weekly streaks, not daily ones.
     static func weeklyStreak() -> Int {
-        let records = (try? Store.context.fetch(FetchDescriptor<DayRecord>(predicate: #Predicate { $0.questDone }))) ?? []
+        let records = (try? Store.context.fetch(FetchDescriptor<DayRecord>(predicate: #Predicate { $0.questDone == true }))) ?? []
         var cal = Calendar.current
         cal.firstWeekday = 2
         let byWeek = Dictionary(grouping: records) { cal.dateInterval(of: .weekOfYear, for: $0.day)?.start ?? $0.day }
@@ -190,7 +190,7 @@ enum Quest {
 
     static func activeDays(last days: Int) -> Int {
         let since = Calendar.current.date(byAdding: .day, value: -days, to: Date())!
-        let d = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.questDone && $0.day >= since })
+        let d = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.questDone == true && $0.day >= since })
         return (try? Store.context.fetchCount(d)) ?? 0
     }
 
@@ -198,7 +198,7 @@ enum Quest {
         var cal = Calendar.current
         cal.firstWeekday = 2
         guard let start = cal.dateInterval(of: .weekOfYear, for: date)?.start else { return 0 }
-        let d = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.questDone && $0.day >= start })
+        let d = FetchDescriptor<DayRecord>(predicate: #Predicate { $0.questDone == true && $0.day >= start })
         return (try? Store.context.fetchCount(d)) ?? 0
     }
 }

@@ -174,7 +174,7 @@ struct DebugView: View {
             for task in [RealmTask.faceName, .ancientRunes, .wordList] {
                 let score = min(1, 0.45 + Double(day) * 0.07 + Double.random(in: -0.05...0.05))
                 let s = TaskSession(task: task, correct: Int(score * 6), total: 6, meanRTms: 1800, score: score,
-                                    seed: "seed", burst: (0, day + 1), date: date)
+                                    seed: "seed", burst: (burst: 0, day: day + 1), date: date)
                 context.insert(s)
             }
             let record = DayRecord(day: date)

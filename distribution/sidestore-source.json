@@ -1,0 +1,39 @@
+{
+  "name": "Memory Garden",
+  "identifier": "com.mxhddd.memorygarden.source",
+  "subtitle": "A cozy memory coach",
+  "description": "Private source for Memory Garden. Add it in SideStore → Sources → +.",
+  "iconURL": "https://raw.githubusercontent.com/YOUR-GITHUB-USER/memory-garden-releases/main/icon.png",
+  "tintColor": "#F4A7C6",
+  "apps": [
+    {
+      "name": "Memory Garden",
+      "bundleIdentifier": "com.mxhddd.memorygarden",
+      "developerName": "Memory Garden",
+      "subtitle": "Memory training with Mochi the raccoon",
+      "localizedDescription": "Five cozy minutes a day: memory games, personal flashcards (FSRS), reminders that keep nudging, and a den that grows as you practise. General wellness only — not a medical device.",
+      "iconURL": "https://raw.githubusercontent.com/YOUR-GITHUB-USER/memory-garden-releases/main/icon.png",
+      "tintColor": "#F4A7C6",
+      "category": "lifestyle",
+      "versions": [
+        {
+          "version": "0.1.0",
+          "buildVersion": "1",
+          "date": "2026-10-15",
+          "localizedDescription": "First release.",
+          "downloadURL": "https://github.com/YOUR-GITHUB-USER/memory-garden-releases/releases/download/v0.1.0/MemoryGarden.ipa",
+          "size": 0,
+          "minOSVersion": "17.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": ["com.apple.security.application-groups"],
+        "privacy": {
+          "NSPhotoLibraryUsageDescription": "Add a photo to a memory card (e.g. a relative's face). Photos stay on this phone.",
+          "NSAlarmKitUsageDescription": "Memory Garden uses alarms only for reminders you set yourself, so they can ring even when your phone is on silent."
+        }
+      }
+    }
+  ],
+  "news": []
+}

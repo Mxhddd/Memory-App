@@ -1,0 +1,17 @@
+name: MemoryCore tests
+
+on:
+  push:
+    paths: ["Packages/MemoryCore/**", ".github/workflows/core-tests.yml"]
+  pull_request:
+    paths: ["Packages/MemoryCore/**", ".github/workflows/core-tests.yml"]
+
+jobs:
+  test:
+    # Linux runner (cheap/free minutes): the science engine has no Apple-only dependencies.
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: swift test --package-path Packages/MemoryCore

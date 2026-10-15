@@ -118,8 +118,8 @@ extension Theme {
         text: Color(hex: 0x1E2A44),
         secondaryText: Color(hex: 0x4A5368),
         success: Color(hex: 0x1F5C4A),
-        outline: Color(hex: 0xB08D3C),
-        ornament: Color(hex: 0xB08D3C),
+        outline: Color(hex: 0xB08D3C),          // decorative brass (borders only)
+        ornament: Color(hex: 0x7A5C17),         // text-safe brass: ≥ 5.1:1 on every Atelier surface
         colorScheme: .light,
         displayFontName: "CormorantGaramondMG-SemiBold",
         fallbackDesign: .serif,

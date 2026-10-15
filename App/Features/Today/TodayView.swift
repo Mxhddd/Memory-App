@@ -7,7 +7,7 @@ struct TodayView: View {
     @Environment(\.theme) private var theme
     @EnvironmentObject private var router: Router
     @Query(sort: \CheckIn.date, order: .reverse) private var checkIns: [CheckIn]
-    @Query(filter: #Predicate<Intention> { $0.active }, sort: \Intention.time) private var intentions: [Intention]
+    @Query(filter: #Predicate<Intention> { $0.active == true }, sort: \Intention.time) private var intentions: [Intention]
 
     @State private var steps: [QuestStep] = []
     @State private var playing: GameContext?
