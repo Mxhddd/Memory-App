@@ -11,12 +11,12 @@ struct WidgetSnapshot: Codable, Equatable {
     var nextIntentionText: String?
     var nextIntentionTime: Date?
     var shinies: Int = 0
-    var lapsesToday: Int = 0
+    var courseDay: Int = 1
     var updatedAt: Date = Date()
 
     static let placeholder = WidgetSnapshot(questDone: 1, questTotal: 3, dueCards: 4,
                                             nextIntentionText: "Call Aunty", nextIntentionTime: Date().addingTimeInterval(3600),
-                                            shinies: 12)
+                                            shinies: 12, courseDay: 9)
 }
 
 enum SharedStore {
@@ -47,23 +47,8 @@ enum SharedStore {
         try? data.write(to: u, options: .atomic)
     }
 
-    /// Lapses logged from the widget, imported into SwiftData next time the app opens.
-    static func appendPendingLapse(_ date: Date = Date()) {
-        guard let u = url("pending-lapses.json") else { return }
-        var list = (try? JSONDecoder().decode([Date].self, from: Data(contentsOf: u))) ?? []
-        list.append(date)
-        if let data = try? JSONEncoder().encode(list) { try? data.write(to: u, options: .atomic) }
-    }
-
-    static func takePendingLapses() -> [Date] {
-        guard let u = url("pending-lapses.json"),
-              let list = try? JSONDecoder().decode([Date].self, from: Data(contentsOf: u)) else { return [] }
-        try? FileManager.default.removeItem(at: u)
-        return list
-    }
-
     static func clear() {
-        for name in ["snapshot.json", "pending-lapses.json"] {
+        for name in ["snapshot.json"] {
             if let u = url(name) { try? FileManager.default.removeItem(at: u) }
         }
     }

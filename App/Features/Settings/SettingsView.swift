@@ -13,7 +13,6 @@ struct SettingsView: View {
     @State private var reminder = Date()
     @State private var confirmDelete = false
     @State private var exportURL: URL?
-    @State private var showCrisis = false
     @State private var versionTaps = 0
     @State private var notificationStatus = "…"
 
@@ -51,24 +50,24 @@ struct SettingsView: View {
             } header: {
                 Text("Reminders")
             } footer: {
-                Text("At most 3 practice prompts a day. Reminders you set yourself are separate.")
+                Text("At most 2 training prompts a day. Reminders you set yourself are separate.")
             }
 
             Section {
-                Toggle("Gentle, errorless learning", isOn: $profile.errorlessNewCards)
-                Toggle("Simple card buttons (Not yet / Got it)", isOn: $profile.simpleRatings)
-                Stepper(value: $profile.desiredRetention, in: 0.80...0.95, step: 0.01) {
-                    LabeledContent("Card target", value: "\(Int(profile.desiredRetention * 100))% remembered")
+                Picker("Minutes per day", selection: $profile.dailyMinutes) {
+                    Text("10").tag(10); Text("15").tag(15); Text("25").tag(25)
                 }
+                .pickerStyle(.segmented)
+                Toggle("Type answers in the Vault", isOn: $profile.typedAnswers)
+                Toggle("Show letters in n-back", isOn: $profile.showNBackLetters)
+                Stepper(value: $profile.desiredRetention, in: 0.80...0.97, step: 0.01) {
+                    LabeledContent("Vault target", value: "\(Int(profile.desiredRetention * 100))% remembered")
+                }
+                NavigationLink("My palaces") { PalaceListView() }
             } header: {
-                Text("Practice")
+                Text("Training")
             } footer: {
-                Text("A higher target means cards come back sooner. 90%+ suits a gentler pace.")
-            }
-
-            Section("Wellbeing & health") {
-                NavigationLink("Doctor-visit checklist") { ChecklistView() }
-                Button("Support & helplines") { showCrisis = true }
+                Text("Typing answers (instead of just revealing) makes recall stronger. Letters in n-back are an accessibility aid; the standard task is audio-only.")
             }
 
             Section {
@@ -92,7 +91,7 @@ struct SettingsView: View {
             }
 
             Section {
-                Text("Memory Garden is for memory training and general wellness. It does not diagnose, treat or predict any condition. If you notice changes in your memory, talk to your doctor.")
+                Text("Memory Garden trains memory techniques and working memory. It is not a medical device and makes no claims about preventing or treating any condition.")
                     .font(.footnote)
                 Text("Fonts: Pixelify Sans & Cormorant Garamond (SIL Open Font License).").font(.footnote)
                 LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–")
@@ -116,7 +115,6 @@ struct SettingsView: View {
             try? context.save()
             WidgetBridge.update(profile: profile)
         }
-        .sheet(isPresented: $showCrisis) { CrisisResourcesView().environment(\.theme, theme) }
         .confirmationDialog("Delete all Memory Garden data on this phone?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete everything", role: .destructive) {
                 Task {
@@ -127,7 +125,7 @@ struct SettingsView: View {
                 }
             }
         } message: {
-            Text("This removes your practice history, cards, reminders and circle. It can't be undone.")
+            Text("This removes your training history, palaces, Vault cards, reminders and circle. It can't be undone.")
         }
     }
 }
@@ -145,12 +143,9 @@ struct DebugView: View {
                 Button("Re-plan notifications") { Notifications.replan(profile: profile); log = "Re-planned." }
             }
             Section("Time travel") {
-                Button("Burst started 1 day earlier") { shift(days: -1) }
-                Button("Skip to next check-in week") { shift(days: -28) }
-                Button("Make delayed recall ready now") {
-                    if var p = DelayedRecall.pending { p.studiedAt = Date().addingTimeInterval(-DelayedRecall.delay); DelayedRecall.pending = p; log = "Ready." }
-                    else { log = "No word list played yet." }
-                }
+                Button("Advance the course one day") { profile.courseDay = min(profile.courseDay + 1, Course.length); profile.lastCourseAdvance = nil; save("Course day \(profile.courseDay).") }
+                Button("Make a benchmark due") { profile.lastBenchmark = nil; save("Benchmark due.") }
+                Button("Reset course to day 1") { profile.courseDay = 1; profile.lessonsRead = []; save("Course reset.") }
             }
             Section("Data") {
                 Button("Seed a fake baseline week") { seed() }
@@ -161,28 +156,29 @@ struct DebugView: View {
         .navigationTitle("Debug")
     }
 
-    private func shift(days: Int) {
-        profile.burstStart = Calendar.current.date(byAdding: .day, value: days, to: profile.burstStart) ?? profile.burstStart
+    private func save(_ message: String) {
         try? context.save()
-        log = "Burst start is now \(profile.burstStart.formatted(date: .abbreviated, time: .omitted))."
+        log = message
     }
 
     private func seed() {
         let cal = Calendar.current
-        for day in 0..<7 {
-            let date = cal.date(byAdding: .day, value: day - 7, to: Date())!
-            for task in [RealmTask.faceName, .ancientRunes, .wordList] {
-                let score = min(1, 0.45 + Double(day) * 0.07 + Double.random(in: -0.05...0.05))
-                let s = TaskSession(task: task, correct: Int(score * 6), total: 6, meanRTms: 1800, score: score,
-                                    seed: "seed", burst: (burst: 0, day: day + 1), date: date)
-                context.insert(s)
-            }
+        for day in 0..<10 {
+            let date = cal.date(byAdding: .day, value: day - 10, to: Date())!
+            let words = 10 + day
+            context.insert(TaskSession(task: .wordSprint, correct: Int(Double(words) * 0.8), total: words, meanRTms: 0, score: 0.8,
+                                       level: words, seed: "seed\(day)", courseDay: day + 1, date: date))
+            context.insert(TaskSession(task: .dualNBack, correct: 9, total: 12, meanRTms: 0, score: 0.75,
+                                       level: 2 + day / 4, seed: "seed\(day)", courseDay: day + 1, date: date))
             let record = DayRecord(day: date)
             record.questDone = true
             context.insert(record)
         }
-        profile.burstStart = cal.date(byAdding: .day, value: -7, to: Date())!
-        try? context.save()
-        log = "Seeded 7 days."
+        for (i, value) in [(0, 11), (9, 17)] {
+            let date = cal.date(byAdding: .day, value: i - 10, to: Date())!
+            context.insert(TaskSession(task: .wordRecall, correct: value, total: 30, meanRTms: 0, score: Double(value) / 30,
+                                       level: value, seed: "benchmark", courseDay: 1, isBenchmark: true, date: date))
+        }
+        save("Seeded 10 days.")
     }
 }

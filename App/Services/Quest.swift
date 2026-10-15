@@ -2,38 +2,43 @@ import Foundation
 import SwiftData
 import MemoryCore
 
-/// One step of today's quest.
+/// One step of today's training session.
 enum QuestStepKind: Hashable {
-    case task(RealmTask)
-    case deck
+    case vault                       // spaced-repetition warm-up
+    case lesson(String)              // Memory Palace lesson
+    case task(RealmTask, size: Int)  // a drill or benchmark
 }
 
 struct QuestStep: Identifiable, Hashable {
     var kind: QuestStepKind
     var done: Bool
+    var isBenchmark: Bool = false
     var id: String {
         switch kind {
-        case .task(let t): return t.rawValue
-        case .deck: return "deck"
+        case .vault: return "vault"
+        case .lesson(let id): return "lesson-\(id)"
+        case .task(let t, let size): return "\(t.rawValue)-\(size)"
         }
     }
 }
 
-/// Decides today's quest, builds game contexts and records results.
+/// Builds today's session and records results.
 ///
-/// Burst days (7 days every 4 weeks) = *measurement*: Face–Name + Ancient Runes with the same
-/// stimuli all week (learning curve) + one rotating task, all at fixed difficulty.
-/// Other days = *training*: personal deck + one adaptive task (+ speed sessions when scheduled).
+///  1. Vault warm-up (due cards)
+///  2. Memory Palace course day: lesson + drills (the course only advances on days you train)
+///  3. Yesterday's sprint, recalled again (consolidation check)
+///  4. Working-memory gym on alternate days
+///  5. Benchmarks on days 0, 14, 28, 42, then monthly (technique-free transfer tests)
 @MainActor
 enum Quest {
-    static let trainingRotation: [RealmTask] = [.stash, .snackPrices, .sequences, .wordList, .faceName, .ancientRunes]
-
     static func salt(_ profile: Profile) -> String { String(Int(profile.createdAt.timeIntervalSince1970)) }
 
-    static func todaysSessions(_ date: Date = Date()) -> [TaskSession] {
+    // MARK: Queries
+
+    static func sessions(on date: Date = Date()) -> [TaskSession] {
         let start = Calendar.current.startOfDay(for: date)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
-        let d = FetchDescriptor<TaskSession>(predicate: #Predicate { $0.date >= start && $0.date < end && $0.isDelayedRecall == false })
+        let d = FetchDescriptor<TaskSession>(predicate: #Predicate { $0.date >= start && $0.date < end })
         return (try? Store.context.fetch(d)) ?? []
     }
 
@@ -46,99 +51,164 @@ enum Quest {
         return (try? Store.context.fetch(d)) ?? []
     }
 
-    static func plannedTasks(for profile: Profile, date: Date = Date()) -> [RealmTask] {
-        let planner = profile.planner
-        if planner.burstDay(for: date) != nil {
-            return planner.tasks(for: date)
-        }
-        let dayIndex = max(planner.dayIndex(for: date), 0)
-        var tasks = [trainingRotation[dayIndex % trainingRotation.count]]
-        let speedDone = speedSessionsInCurrentPhase(profile)
-        if SpeedSchedule.sessionSuggested(phase: SpeedSchedule.phase(start: profile.speedStart, now: date), sessionsDoneInPhase: speedDone),
-           dayIndex % 3 != 2 { // ~10 sessions spread over the first 6 weeks
-            tasks.append(.runeSort)
-        }
-        if cardCount() == 0 && tasks.count < 2 {
-            tasks.append(trainingRotation[(dayIndex + 2) % trainingRotation.count])
-        }
-        return tasks
+    static func palaces() -> [Palace] {
+        (try? Store.context.fetch(FetchDescriptor<Palace>(sortBy: [SortDescriptor(\.createdAt)]))) ?? []
+    }
+
+    /// The palace to use today: least recently used with enough stops (rotation limits interference).
+    static func palace(forItems items: Int) -> Palace? {
+        let all = palaces()
+        let fitting = all.filter { $0.stops.count >= items }
+        let pool = fitting.isEmpty ? all : fitting
+        return pool.min { ($0.lastUsed ?? .distantPast) < ($1.lastUsed ?? .distantPast) }
+    }
+
+    // MARK: Plan
+
+    static func courseDay(_ profile: Profile) -> CourseDay {
+        Course.day(profile.courseDay, wordLevel: profile.wordLevel, digitLevel: profile.digitLevel)
+    }
+
+    static func isGymDay(_ profile: Profile, date: Date = Date()) -> Bool {
+        let day = Calendar.current.ordinality(of: .day, in: .era, for: date) ?? 0
+        return profile.dailyMinutes >= 25 || day % 2 == 0
+    }
+
+    static func benchmarkDue(_ profile: Profile, date: Date = Date()) -> Bool {
+        profile.benchmarks.isDue(on: date, lastCompleted: profile.lastBenchmark)
+            || sessions(on: date).contains { $0.isBenchmark } // keep showing today's battery once started
+    }
+
+    static func yesterdaysSprint() -> TaskSession? {
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return nil }
+        return sessions(on: yesterday).filter { $0.task == .wordSprint }.max { $0.level < $1.level }
     }
 
     static func steps(for profile: Profile, date: Date = Date()) -> [QuestStep] {
-        let doneTasks = Set(todaysSessions(date).map(\.taskRaw))
-        var steps = plannedTasks(for: profile, date: date).map { QuestStep(kind: .task($0), done: doneTasks.contains($0.rawValue)) }
-        if profile.planner.burstDay(for: date) == nil, cardCount() > 0 {
-            steps.insert(QuestStep(kind: .deck, done: Store.dayRecord(for: date).deckDone), at: 0)
+        let today = sessions(on: date)
+        func done(_ t: RealmTask) -> Bool { today.contains { $0.task == t } }
+        var steps: [QuestStep] = []
+
+        if !dueCards(date).isEmpty || Store.dayRecord(for: date).vaultDone {
+            steps.append(QuestStep(kind: .vault, done: Store.dayRecord(for: date).vaultDone))
+        }
+
+        if benchmarkDue(profile, date: date) {
+            steps.append(QuestStep(kind: .task(.wordRecall, size: WordBank.benchmarkFormSize), done: done(.wordRecall), isBenchmark: true))
+            steps.append(QuestStep(kind: .task(.digitSpan, size: 3), done: done(.digitSpan), isBenchmark: true))
+        }
+
+        let course = courseDay(profile)
+        if let lesson = course.lesson {
+            steps.append(QuestStep(kind: .lesson(lesson.id), done: profile.lessonsRead.contains(lesson.id)))
+        }
+        for drill in course.drills {
+            let task = Self.task(for: drill.kind)
+            steps.append(QuestStep(kind: .task(task, size: drill.size), done: done(task)))
+        }
+
+        if let sprint = yesterdaysSprint() {
+            steps.append(QuestStep(kind: .task(.sprintRetention, size: sprint.level), done: done(.sprintRetention)))
+        }
+
+        if isGymDay(profile, date: date) {
+            steps.append(QuestStep(kind: .task(.dualNBack, size: profile.nBackLevel), done: done(.dualNBack)))
+            if profile.dailyMinutes >= 25 {
+                steps.append(QuestStep(kind: .task(.complexSpan, size: 0), done: done(.complexSpan)))
+            }
         }
         return steps
     }
 
-    static func isBurstDay(_ profile: Profile, date: Date = Date()) -> Bool {
-        profile.planner.burstDay(for: date) != nil
-    }
-
-    static func context(for task: RealmTask, profile: Profile, date: Date = Date()) -> GameContext {
-        let planner = profile.planner
-        let burst = planner.burstDay(for: date)
-        let dayIndex = max(planner.dayIndex(for: date), 0)
-        let seed: String
-        if let b = burst {
-            seed = "\(salt(profile))-burst\(b.burst)-\(task.rawValue)" // same stimuli all burst week
-        } else {
-            seed = "\(salt(profile))-day\(dayIndex)-\(task.rawValue)"
+    static func task(for kind: DrillKind) -> RealmTask {
+        switch kind {
+        case .routeWalk: return .routeWalk
+        case .wordSprint: return .wordSprint
+        case .numberSprint: return .numberSprint
+        case .faceName: return .faceName
         }
-        let gentle = profile.errorlessNewCards
-        let level = burst != nil ? 2 : DifficultyStore.level(for: task, gentle: gentle)
-        let firstTask = plannedTasks(for: profile, date: date).first == task
-        let moonBell = firstTask && (burst != nil || dayIndex % 2 == 0)
-        let form = burst.map { $0.burst } ?? (dayIndex + 3)
-        return GameContext(task: task, seed: seed, burst: burst, level: level, gentle: gentle, moonBell: moonBell, wordForm: form)
     }
 
-    static func delayedRecallContext(_ pending: DelayedRecall.Pending, profile: Profile) -> GameContext {
-        GameContext(task: .wordList, seed: pending.seed, burst: pending.burst >= 0 ? (burst: pending.burst, day: pending.burstDay) : nil,
-                    level: 2, gentle: profile.errorlessNewCards, moonBell: false, wordForm: pending.form, delayedRecall: true)
+    // MARK: Contexts
+
+    static func context(for task: RealmTask, size: Int, profile: Profile, date: Date = Date()) -> GameContext {
+        let stamp = Notifications.dayStamp(date)
+        var seed = "\(salt(profile))-\(stamp)-\(task.rawValue)"
+        if task == .wordRecall { seed = "benchmark" } // fixed forms; the form index rotates
+        if task == .sprintRetention, let s = yesterdaysSprint() { seed = s.seed }
+        let level = task.domain == .associative ? DifficultyStore.level(for: task) : 2
+        let palace = [.wordSprint, .sprintRetention, .routeWalk].contains(task) ? palace(forItems: size) : nil
+        return GameContext(task: task, seed: seed, size: size, level: level, courseDay: profile.courseDay,
+                           palaceID: palace?.id, benchmarkForm: BenchmarkPlanner.form(forSession: profile.benchmarkCount),
+                           isBenchmark: task.isBenchmark)
     }
 
-    /// Saves a finished game and returns true if this completed today's quest.
+    // MARK: Recording
+
+    /// Saves a finished game, adapts levels, and returns true if this completed today's session.
     @discardableResult
     static func record(_ outcome: GameOutcome, ctx: GameContext, profile: Profile) -> Bool {
         let session = TaskSession(task: ctx.task, correct: outcome.correct, total: outcome.total, meanRTms: outcome.meanRTms,
-                                  score: outcome.score, seed: ctx.seed, burst: ctx.burst, delayed: ctx.delayedRecall)
+                                  score: outcome.score, level: outcome.level ?? ctx.size, seed: ctx.seed,
+                                  courseDay: profile.courseDay, isBenchmark: ctx.isBenchmark)
         Store.context.insert(session)
-        if !ctx.isMeasurement && !outcome.trials.isEmpty {
-            DifficultyStore.record(outcome.trials, for: ctx.task)
+
+        switch ctx.task {
+        case .wordSprint:
+            profile.wordLevel = Course.nextWordLevel(current: max(profile.wordLevel, ctx.size), accuracy: outcome.score)
+        case .numberSprint:
+            profile.digitLevel = Course.nextDigitLevel(current: max(profile.digitLevel, ctx.size), accuracy: outcome.score)
+        case .dualNBack:
+            if let next = outcome.nextLevel { profile.nBackLevel = next }
+        case .faceName, .ancientRunes, .stash, .sequences:
+            if !outcome.trials.isEmpty { DifficultyStore.record(outcome.trials, for: ctx.task) }
+        default: break
         }
-        if ctx.task == .runeSort {
-            UserDefaults.standard.set(speedSessionsInCurrentPhase(profile) + 1, forKey: speedKey(profile))
-        }
+        if let id = ctx.palaceID, let palace = palaces().first(where: { $0.id == id }) { palace.lastUsed = Date() }
         profile.shinies += 1
 
-        if ctx.task == .wordList && !ctx.delayedRecall {
-            DelayedRecall.pending = .init(form: ctx.wordForm, seed: ctx.seed, studiedAt: Date(),
-                                          burst: ctx.burst?.burst ?? -1, burstDay: ctx.burst?.day ?? 0)
-            Notifications.scheduleDelayedRecall(mascot: profile.mascotName, theme: profile.theme)
+        if ctx.isBenchmark {
+            let battery: Set<RealmTask> = [.wordRecall, .digitSpan]
+            let doneToday = Set(sessions().filter(\.isBenchmark).map(\.task)).union([ctx.task])
+            if battery.isSubset(of: doneToday), !Calendar.current.isDateInToday(profile.lastBenchmark ?? .distantPast) {
+                profile.lastBenchmark = Date()
+                profile.benchmarkCount += 1
+            }
         }
-        if ctx.delayedRecall { DelayedRecall.pending = nil }
+        Store.save()
+        advanceCourseIfDone(profile)
+        return refreshCompletion(profile)
+    }
+
+    static func markLessonRead(_ id: String, profile: Profile) -> Bool {
+        if !profile.lessonsRead.contains(id) { profile.lessonsRead.append(id) }
+        Store.save()
+        advanceCourseIfDone(profile)
+        return refreshCompletion(profile)
+    }
+
+    static func markVaultDone(profile: Profile) -> Bool {
+        Store.dayRecord().vaultDone = true
+        profile.shinies += 1
         Store.save()
         return refreshCompletion(profile)
     }
 
-    static func recordMoonBell(hit: Bool, ctx: GameContext) {
-        let session = TaskSession(task: .moonBell, correct: hit ? 1 : 0, total: 1, meanRTms: 0, score: hit ? 1 : 0,
-                                  seed: ctx.seed, burst: ctx.burst)
-        Store.context.insert(session)
-        Store.save()
+    /// The course moves to the next day once today's lesson and drills are done — at most once a day.
+    static func advanceCourseIfDone(_ profile: Profile) {
+        guard !Calendar.current.isDateInToday(profile.lastCourseAdvance ?? .distantPast) else { return }
+        let course = courseDay(profile)
+        let today = sessions()
+        let lessonDone = course.lesson.map { profile.lessonsRead.contains($0.id) } ?? true
+        let drillsDone = course.drills.allSatisfy { d in today.contains { $0.task == task(for: d.kind) } }
+        if lessonDone && drillsDone && profile.courseDay < Course.length {
+            profile.courseDay += 1
+            profile.lastCourseAdvance = Date()
+            Store.save()
+        }
     }
 
-    static func markDeckDone(profile: Profile) -> Bool {
-        Store.dayRecord().deckDone = true
-        profile.shinies += 1
-        Store.save()
-        return refreshCompletion(profile)
-    }
-
-    /// Updates the day record and fires all side effects. Returns true when the quest *just* completed.
+    /// Updates the day record and fires side effects. Returns true when the session *just* completed.
     @discardableResult
     static func refreshCompletion(_ profile: Profile) -> Bool {
         let s = steps(for: profile)
@@ -157,21 +227,9 @@ enum Quest {
         return justCompleted
     }
 
-    // Speed module bookkeeping (ACTIVE-style initial block + boosters)
-    private static func speedKey(_ profile: Profile) -> String {
-        let phase = SpeedSchedule.phase(start: profile.speedStart, now: Date())
-        switch phase {
-        case .initial: return "speed.initial"
-        case .booster(let n): return "speed.booster\(n)"
-        case .rest: return "speed.rest"
-        }
-    }
+    // MARK: Streaks
 
-    static func speedSessionsInCurrentPhase(_ profile: Profile) -> Int {
-        UserDefaults.standard.integer(forKey: speedKey(profile))
-    }
-
-    /// Consecutive weeks (Mon–Sun) with ≥ 4 quest days — forgiving weekly streaks, not daily ones.
+    /// Consecutive weeks (Mon–Sun) with ≥ 4 training days — forgiving weekly streaks.
     static func weeklyStreak() -> Int {
         let records = (try? Store.context.fetch(FetchDescriptor<DayRecord>(predicate: #Predicate { $0.questDone == true }))) ?? []
         var cal = Calendar.current
@@ -179,7 +237,6 @@ enum Quest {
         let byWeek = Dictionary(grouping: records) { cal.dateInterval(of: .weekOfYear, for: $0.day)?.start ?? $0.day }
         var streak = 0
         var week = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-        // The current week counts if it already qualifies; otherwise start from last week.
         if (byWeek[week]?.count ?? 0) < 4 { week = cal.date(byAdding: .weekOfYear, value: -1, to: week)! }
         while (byWeek[week]?.count ?? 0) >= 4 {
             streak += 1
@@ -203,7 +260,7 @@ enum Quest {
     }
 }
 
-/// Fan-out of side effects whenever quest progress changes.
+/// Fan-out of side effects whenever session progress changes.
 @MainActor
 enum AppEvents {
     static func questChanged(profile: Profile, justCompleted: Bool) {
@@ -218,10 +275,6 @@ enum AppEvents {
     /// Called on launch / foreground.
     static func appBecameActive() {
         guard let profile = Store.profile(), profile.onboardingComplete else { return }
-        for date in SharedStore.takePendingLapses() {
-            Store.context.insert(LapseLog(date: date, note: "from widget"))
-        }
-        Store.save()
         _ = Quest.refreshCompletion(profile)
         Task { await CircleService.shared.reportToday(profile: profile) }
     }

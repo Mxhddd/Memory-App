@@ -8,8 +8,8 @@ struct SequencesGame: View {
     let ctx: GameContext
     let onFinish: (GameOutcome) -> Void
 
-    private var side: Int { ctx.gentle ? 3 : 4 }
-    private var trialsTotal: Int { ctx.gentle ? 5 : 6 }
+    private let side = 4
+    private let trialsTotal = 6
 
     @State private var span = 3
     @State private var maxSpan = 0
@@ -45,13 +45,12 @@ struct SequencesGame: View {
                     .accessibilityLabel("Cell \(cell + 1)")
                 }
             }
-            .padding(.horizontal, ctx.gentle ? 8 : 0)
             Spacer(minLength: 0)
         }
         .padding()
         .task {
             rng = SeededRandom(ctx.seed)
-            span = ctx.isMeasurement ? 3 : 2 + ctx.level
+            span = 2 + ctx.level
             await play()
         }
     }
@@ -68,7 +67,7 @@ struct SequencesGame: View {
         feedback = nil
         sequence = Stimuli.sequence(length: span, gridCells: side * side, rng: &rng)
         try? await Task.sleep(nanoseconds: 600_000_000)
-        let step: UInt64 = ctx.gentle ? 900_000_000 : 700_000_000
+        let step: UInt64 = 700_000_000
         for c in sequence {
             lit = c
             SFX.play(.shiny)
@@ -116,10 +115,9 @@ struct StashGame: View {
     let ctx: GameContext
     let onFinish: (GameOutcome) -> Void
 
-    private var side: Int { ctx.gentle ? 3 : 4 }
+    private let side = 4
     private var itemCount: Int {
-        let base = [3, 4, 5, 6, 7][min(max(ctx.level, 0), 4)]
-        return min(ctx.gentle ? base - 1 : base, side * side - 2)
+        min([4, 5, 6, 7, 8][min(max(ctx.level, 0), 4)], side * side - 2)
     }
 
     @State private var placements: [Stimuli.Placement] = []
@@ -204,109 +202,5 @@ struct StashGame: View {
                                      trials: Array(repeating: (d, true), count: correct) + Array(repeating: (d, false), count: order.count - correct)))
             }
         }
-    }
-}
-
-// MARK: Rune Sort / Seal Matching (processing speed — digit–symbol style)
-
-struct RuneSortGame: View {
-    @Environment(\.theme) private var theme
-    let ctx: GameContext
-    let onFinish: (GameOutcome) -> Void
-
-    private var keySize: Int { ctx.isMeasurement ? 6 : [4, 5, 6, 7, 8][min(max(ctx.level, 0), 4)] }
-    private var duration: Double { ctx.gentle ? 60 : 45 }
-
-    @State private var runes: [[[Bool]]] = []
-    @State private var current = 0
-    @State private var correct = 0
-    @State private var attempts = 0
-    @State private var rts: [Double] = []
-    @State private var timer = ResponseTimer()
-    @State private var remaining: Double = 45
-    @State private var flash: Bool?
-    @State private var rng = SeededRandom("r")
-    @State private var finished = false
-
-    var body: some View {
-        VStack(spacing: 14) {
-            HStack {
-                Text("Match the rune to its number").font(theme.bodyEmphasis).foregroundStyle(theme.secondaryText)
-                Spacer()
-                Text("\(Int(remaining.rounded(.up)))s").font(theme.bodyEmphasis.monospacedDigit()).foregroundStyle(theme.text)
-            }
-            // Key
-            HStack(spacing: 6) {
-                ForEach(runes.indices, id: \.self) { i in
-                    VStack(spacing: 2) {
-                        RuneView(rune: runes[i], color: theme.text).frame(width: 34, height: 34)
-                        Text("\(i + 1)").font(theme.bodyEmphasis).foregroundStyle(theme.text)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .themedCard(raised: true)
-            Spacer(minLength: 0)
-            if !runes.isEmpty {
-                RuneView(rune: runes[current], color: flash == nil ? theme.text : (flash! ? theme.success : theme.primary))
-                    .frame(width: 140, height: 140)
-                    .themedCard()
-                    .frame(width: 180)
-            }
-            Spacer(minLength: 0)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: min(keySize, 4)), spacing: 10) {
-                ForEach(0..<runes.count, id: \.self) { i in
-                    Button("\(i + 1)") { answer(i) }
-                        .buttonStyle(ChoiceButtonStyle())
-                        .disabled(finished)
-                }
-            }
-        }
-        .padding()
-        .task {
-            rng = SeededRandom(ctx.seed)
-            runes = Stimuli.runeSet(count: keySize, seed: ctx.seed)
-            remaining = duration
-            next()
-            let start = Date()
-            while !finished {
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                if Task.isCancelled { return }
-                remaining = max(0, duration - Date().timeIntervalSince(start))
-                if remaining <= 0 { end() }
-            }
-        }
-    }
-
-    private func next() {
-        var n = Int.random(in: 0..<max(runes.count, 1), using: &rng)
-        if n == current && runes.count > 1 { n = (n + 1) % runes.count }
-        current = n
-        timer.reset()
-    }
-
-    private func answer(_ i: Int) {
-        guard !finished else { return }
-        attempts += 1
-        rts.append(timer.elapsedMs)
-        let ok = i == current
-        if ok { correct += 1; Haptic.tap() } else { Haptic.soft() }
-        flash = ok
-        Task {
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            flash = nil
-        }
-        next()
-    }
-
-    private func end() {
-        guard !finished else { return }
-        finished = true
-        let perMinute = Double(correct) / (duration / 60)
-        let mean = rts.isEmpty ? 0 : rts.reduce(0, +) / Double(rts.count)
-        let d = DifficultyStore.difficulty(ofLevel: ctx.level)
-        // ~60 correct/min is excellent on a phone; scale to roughly 0…1.
-        onFinish(GameOutcome(correct: correct, total: max(attempts, 1), meanRTms: mean, score: min(perMinute / 60, 1),
-                             trials: [(d, attempts > 0 && Double(correct) / Double(attempts) >= 0.9 && perMinute >= 25)]))
     }
 }

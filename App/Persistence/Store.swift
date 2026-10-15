@@ -5,7 +5,7 @@ import MemoryCore
 enum Store {
     static let schema = Schema([
         Profile.self, TaskSession.self, MemoryCard.self, ReviewLogEntry.self, Intention.self,
-        CheckIn.self, LapseLog.self, Supporter.self, DayRecord.self, ChecklistItem.self,
+        Supporter.self, DayRecord.self, Palace.self,
     ])
 
     /// Local-only store (no CloudKit — that needs a paid developer account).
@@ -45,8 +45,7 @@ enum Store {
     static func deleteEverything() {
         func wipe<T: PersistentModel>(_ type: T.Type) { try? context.delete(model: type) }
         wipe(Profile.self); wipe(TaskSession.self); wipe(MemoryCard.self); wipe(ReviewLogEntry.self)
-        wipe(Intention.self); wipe(CheckIn.self); wipe(LapseLog.self); wipe(Supporter.self)
-        wipe(DayRecord.self); wipe(ChecklistItem.self)
+        wipe(Intention.self); wipe(Supporter.self); wipe(DayRecord.self); wipe(Palace.self)
         try? context.save()
         SharedStore.clear()
         UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier ?? "")

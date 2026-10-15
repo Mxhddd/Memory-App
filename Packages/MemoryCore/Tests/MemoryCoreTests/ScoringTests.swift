@@ -65,56 +65,6 @@ final class EWMATests: XCTestCase {
     }
 }
 
-final class EscalationTests: XCTestCase {
-    let day: TimeInterval = 86_400
-    var t0: Date { Date(timeIntervalSince1970: 0) }
-
-    func testRequiresAllThreeConditions() {
-        let bursts = [
-            BurstChange(startDate: t0, changeZ: -2, confounded: false),
-            BurstChange(startDate: t0.addingTimeInterval(28 * day), changeZ: -1.8, confounded: false),
-        ]
-        XCTAssertTrue(EscalationPolicy.shouldSuggestDoctorVisit(ewmaBelowLimit: true, bursts: bursts))
-        XCTAssertFalse(EscalationPolicy.shouldSuggestDoctorVisit(ewmaBelowLimit: false, bursts: bursts))
-    }
-
-    func testBurstsTooCloseTogether() {
-        let bursts = [
-            BurstChange(startDate: t0, changeZ: -2, confounded: false),
-            BurstChange(startDate: t0.addingTimeInterval(14 * day), changeZ: -2, confounded: false),
-        ]
-        XCTAssertFalse(EscalationPolicy.shouldSuggestDoctorVisit(ewmaBelowLimit: true, bursts: bursts))
-    }
-
-    func testSingleBadBurstOrConfounderBlocks() {
-        let one = [
-            BurstChange(startDate: t0, changeZ: -0.5, confounded: false),
-            BurstChange(startDate: t0.addingTimeInterval(30 * day), changeZ: -2.5, confounded: false),
-        ]
-        XCTAssertFalse(EscalationPolicy.shouldSuggestDoctorVisit(ewmaBelowLimit: true, bursts: one))
-        let sleepy = [
-            BurstChange(startDate: t0, changeZ: -2, confounded: false),
-            BurstChange(startDate: t0.addingTimeInterval(30 * day), changeZ: -2, confounded: true),
-        ]
-        XCTAssertFalse(EscalationPolicy.shouldSuggestDoctorVisit(ewmaBelowLimit: true, bursts: sleepy))
-    }
-}
-
-final class GardenIndexTests: XCTestCase {
-    func testWeightsSumToOne() {
-        XCTAssertEqual(GardenIndex.weights.values.reduce(0, +), 1, accuracy: 1e-12)
-    }
-
-    func testRenormalisesMissingDomains() {
-        XCTAssertEqual(GardenIndex.index([.associative: 1, .speed: 1])!, 1, accuracy: 1e-12)
-        XCTAssertNil(GardenIndex.index([:]))
-    }
-
-    func testPersonalZ() {
-        XCTAssertEqual(personalZ(0.8, baseline: [0.6, 0.7, 0.8])!, 1, accuracy: 1e-12)
-    }
-}
-
 final class RaschTests: XCTestCase {
     func testAbilityRisesWithSuccessAndTargetsSeventyFivePercent() {
         var a = RaschAbility(target: 0.75)
@@ -138,37 +88,9 @@ final class BanditTests: XCTestCase {
         XCTAssertGreaterThan(picks.filter { $0 == "morning" }.count, 45)
     }
 
-    func testPromptCap() {
+    func testPromptCapStillHolds() {
         var rng = SeededRandom(seed: 1)
         XCTAssertFalse(PromptPolicy().shouldPrompt(sentToday: 3, using: &rng))
-    }
-}
-
-final class PlannerAndQuestionnaireTests: XCTestCase {
-    func testBurstCycle() {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "Asia/Karachi")!
-        let start = cal.date(from: DateComponents(year: 2026, month: 10, day: 15, hour: 9))!
-        let p = BurstPlanner(start: start, calendar: cal)
-        XCTAssertEqual(p.burstDay(for: start)!.day, 1)
-        XCTAssertEqual(p.burstDay(for: cal.date(byAdding: .day, value: 6, to: start)!)!.day, 7)
-        XCTAssertNil(p.burstDay(for: cal.date(byAdding: .day, value: 7, to: start)!))
-        let second = p.burstDay(for: cal.date(byAdding: .day, value: 28, to: start)!)!
-        XCTAssertEqual(second.burst, 1)
-        XCTAssertEqual(second.day, 1)
-        XCTAssertEqual(p.tasks(for: start).prefix(2), [.faceName, .ancientRunes])
-    }
-
-    func testPHQ9() {
-        XCTAssertEqual(PHQ9.score([1, 1, 1, 1, 1, 1, 1, 1, 0]), 8)
-        XCTAssertEqual(PHQ9.band(8), .mild)
-        XCTAssertTrue(PHQ9.needsSafetyResources([0, 0, 0, 0, 0, 0, 0, 0, 1]))
-        XCTAssertFalse(PHQ9.needsSafetyResources([3, 3, 3, 3, 3, 3, 3, 3, 0]))
-    }
-
-    func testQuadrant() {
-        XCTAssertEqual(ProfileQuadrant.classify(complaint: 4, performanceZ: 0), .worriedButSteady)
-        XCTAssertEqual(ProfileQuadrant.classify(complaint: 4, performanceZ: -1.5), .focusHere)
     }
 }
 
@@ -214,12 +136,9 @@ final class StimuliTests: XCTestCase {
         XCTAssertFalse(AnswerMatch.matches("cat", "car"))
     }
 
-    func testPriceOptions() {
-        let items = Stimuli.pricedItems(count: 6, seed: "z")
-        for item in items {
-            let opts = Stimuli.priceOptions(for: item, seed: "z")
-            XCTAssertEqual(opts.count, 3)
-            XCTAssertTrue(opts.contains(item.price))
+    func testRunesAreNeverTooPlain() {
+        for i in 0..<300 {
+            XCTAssertTrue(Stimuli.isComplex(Stimuli.rune(seed: "r\(i)")), "rune r\(i) is too plain")
         }
     }
 }

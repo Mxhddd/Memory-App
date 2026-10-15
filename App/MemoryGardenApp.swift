@@ -24,17 +24,16 @@ struct MemoryGardenApp: App {
 @MainActor
 final class Router: ObservableObject {
     static let shared = Router()
-    enum Destination: Equatable { case today, delayedRecall, startQuest, reminders }
+    enum Destination: Equatable { case today, startQuest, reminders }
     @Published var pending: Destination?
     @Published var tab: Tab = .today
 
-    enum Tab: Hashable { case today, practice, reminders, den }
+    enum Tab: Hashable { case today, train, vault, progress, reminders }
 
     func open(_ url: URL) {
         switch url.host {
         case "quest": pending = .startQuest; tab = .today
         case "reminders": tab = .reminders
-        case "recall": pending = .delayedRecall; tab = .today
         default: tab = .today
         }
     }
@@ -66,14 +65,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             case Notifications.Action.tonight.rawValue:
                 Notifications.snoozeToTonight(request)
             case Notifications.Action.start.rawValue:
-                Router.shared.pending = (info["link"] as? String) == "delayedRecall" ? .delayedRecall : .startQuest
+                Router.shared.pending = .startQuest
                 Router.shared.tab = .today
             default: // plain tap
                 if info["intention"] != nil {
                     Router.shared.tab = .reminders
-                } else if (info["link"] as? String) == "delayedRecall" {
-                    Router.shared.pending = .delayedRecall
-                    Router.shared.tab = .today
                 } else {
                     Router.shared.tab = .today
                 }
@@ -112,15 +108,18 @@ struct MainTabView: View {
             NavigationStack { TodayView(profile: profile) }
                 .tabItem { Label("Today", systemImage: theme.id == .midnightRaccoon ? "moon.stars.fill" : "sun.max.fill") }
                 .tag(Router.Tab.today)
-            NavigationStack { DeckView(profile: profile) }
-                .tabItem { Label("Practice", systemImage: "rectangle.stack.fill") }
-                .tag(Router.Tab.practice)
+            NavigationStack { TrainView(profile: profile) }
+                .tabItem { Label("Train", systemImage: "building.columns.fill") }
+                .tag(Router.Tab.train)
+            NavigationStack { VaultView(profile: profile) }
+                .tabItem { Label("Vault", systemImage: "rectangle.stack.fill") }
+                .tag(Router.Tab.vault)
+            NavigationStack { ProgressScreen(profile: profile) }
+                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(Router.Tab.progress)
             NavigationStack { IntentionsView(profile: profile) }
                 .tabItem { Label("Reminders", systemImage: "bell.badge.fill") }
                 .tag(Router.Tab.reminders)
-            NavigationStack { DenView(profile: profile) }
-                .tabItem { Label(theme.copy.denTitle, systemImage: theme.id == .midnightRaccoon ? "sparkles" : "building.columns.fill") }
-                .tag(Router.Tab.den)
         }
         .tint(theme.primary)
         .task {

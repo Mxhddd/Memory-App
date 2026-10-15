@@ -2,24 +2,18 @@ import SwiftUI
 import SwiftData
 import MemoryCore
 
-/// "Who is this phone for?" → name & mascot → reminder time → everyday-memory check →
-/// optional wellbeing check → permissions → the 7-day baseline burst starts tomorrow-ish (today).
+/// Style → names → daily time → reminder → permissions → first benchmark.
 struct OnboardingFlow: View {
     let existing: Profile?
     @Environment(\.modelContext) private var context
 
-    private enum Step: Int, CaseIterable { case welcome, who, names, reminder, memory, wellbeing, permissions, ready }
+    private enum Step: Int, CaseIterable { case welcome, who, names, time, reminder, permissions, ready }
     @State private var step: Step = .welcome
     @State private var theme: ThemeID = .midnightRaccoon
     @State private var name = ""
     @State private var mascot = "Mochi"
+    @State private var minutes = 15
     @State private var reminder = Calendar.current.date(bySettingHour: 19, minute: 30, second: 0, of: Date())!
-    @State private var memoryAnswers = Array(repeating: 2, count: EverydayMemoryCheck.items.count)
-    @State private var hearing = false
-    @State private var phq = Array(repeating: 0, count: 9)
-    @State private var gad = Array(repeating: 0, count: 7)
-    @State private var didWellbeing = false
-    @State private var showCrisis = false
 
     var body: some View {
         let t = Theme.forID(theme)
@@ -40,7 +34,6 @@ struct OnboardingFlow: View {
         .environment(\.theme, t)
         .preferredColorScheme(t.colorScheme)
         .animation(.easeInOut(duration: 0.25), value: step)
-        .sheet(isPresented: $showCrisis) { CrisisResourcesView().environment(\.theme, t) }
     }
 
     @ViewBuilder private var content: some View {
@@ -48,9 +41,8 @@ struct OnboardingFlow: View {
         case .welcome: welcome
         case .who: who
         case .names: names
+        case .time: timeStep
         case .reminder: reminderStep
-        case .memory: memoryStep
-        case .wellbeing: wellbeingStep
         case .permissions: permissionsStep
         case .ready: readyStep
         }
@@ -61,22 +53,21 @@ struct OnboardingFlow: View {
         if let n = Step(rawValue: step.rawValue + 1) { step = n }
     }
 
-    // MARK: Steps
-
     private var welcome: some View {
-        VStack(spacing: 20) {
+        let t = Theme.forID(theme)
+        return VStack(spacing: 20) {
             MascotView(mood: .happy, size: 160).padding(.top, 40)
-            Text("Memory Garden").font(Theme.forID(theme).display(40)).foregroundStyle(Theme.forID(theme).text)
-            SpeechBubble(text: "Hi! I'm a tiny memory coach. Five cozy minutes a day: games, your own flashcards, and reminders that actually remind you.")
-            Text("This is brain fitness and memory training — not a medical test. It never diagnoses anything.")
-                .font(.footnote).foregroundStyle(Theme.forID(theme).secondaryText).multilineTextAlignment(.center)
+            Text("Memory Garden").font(t.display(40)).foregroundStyle(t.text)
+            SpeechBubble(text: "Train your memory the way memory champions do: memory palaces, number codes, working-memory drills and smart spaced recall — a little every day.")
+            Text("Built on published research. Your progress is measured with honest benchmarks, not hype.")
+                .font(.footnote).foregroundStyle(t.secondaryText).multilineTextAlignment(.center)
             Button("Let's begin") { next() }.buttonStyle(PrimaryButtonStyle())
         }
     }
 
     private var who: some View {
         VStack(spacing: 16) {
-            SectionTitle(text: "Who is this phone for?")
+            SectionTitle(text: "Pick your style")
             ForEach(ThemeID.allCases) { id in
                 let t = Theme.forID(id)
                 Button {
@@ -88,8 +79,8 @@ struct OnboardingFlow: View {
                         PixelSpriteView(art: t.mascotIdle).frame(width: 64, height: 64)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(t.copy.appTitle).font(t.display(24)).foregroundStyle(t.text)
-                            Text(id == .midnightRaccoon ? "Cute-goth pixel den with Mochi the raccoon. Playful, cozy, nocturnal."
-                                                        : "Calm and elegant. Large text, one step at a time, gentle pacing.")
+                            Text(id == .midnightRaccoon ? "Cute-goth pixel den with Mochi the raccoon."
+                                                        : "Calm, elegant, ivory and brass.")
                                 .font(.callout).foregroundStyle(t.secondaryText)
                         }
                         Spacer(minLength: 0)
@@ -102,8 +93,6 @@ struct OnboardingFlow: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(theme == id ? .isSelected : [])
             }
-            Text("Each phone has one person. The style also sets pacing: the Atelier uses gentler, errorless practice.")
-                .font(.footnote).foregroundStyle(Theme.forID(theme).secondaryText)
             Button("Continue") { next() }.buttonStyle(PrimaryButtonStyle())
         }
     }
@@ -134,13 +123,41 @@ struct OnboardingFlow: View {
         }
     }
 
+    private var timeStep: some View {
+        let t = Theme.forID(theme)
+        return VStack(alignment: .leading, spacing: 16) {
+            SectionTitle(text: "How long per day?")
+            Text("Consistency beats marathons. The study this course is based on used about 30 minutes a day; 15 is a strong start.")
+                .font(t.body).foregroundStyle(t.secondaryText)
+            ForEach([10, 15, 25], id: \.self) { m in
+                Button {
+                    minutes = m
+                    Haptic.soft()
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(m) minutes").font(t.bodyEmphasis).foregroundStyle(t.text)
+                            Text(m == 10 ? "Course + a short gym block every other day"
+                                 : m == 15 ? "Course + gym every other day (recommended)"
+                                 : "Course + full gym every day")
+                                .font(t.caption).foregroundStyle(t.secondaryText)
+                        }
+                        Spacer()
+                        Image(systemName: minutes == m ? "checkmark.circle.fill" : "circle").foregroundStyle(t.primary)
+                    }
+                    .themedCard()
+                }
+                .buttonStyle(.plain)
+            }
+            Button("Continue") { next() }.buttonStyle(PrimaryButtonStyle())
+        }
+    }
+
     private var reminderStep: some View {
         let t = Theme.forID(theme)
         return VStack(spacing: 16) {
-            SectionTitle(text: "When's a good time?")
-            Text(theme == .midnightRaccoon
-                 ? "Raccoons are night owls. An evening \(t.copy.eveningSession) helps memories settle during sleep, then a quick \(t.copy.morningSession) the next day."
-                 : "Pick a calm time of day. Evening practice can help memories settle during sleep.")
+            SectionTitle(text: "When should we train?")
+            Text("Evenings work well: learning shortly before sleep gives memories a night to consolidate, and the next-day recall shows what stuck.")
                 .font(t.body).foregroundStyle(t.secondaryText)
             DatePicker("Daily reminder", selection: $reminder, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel)
@@ -150,72 +167,16 @@ struct OnboardingFlow: View {
         }
     }
 
-    private var memoryStep: some View {
-        let t = Theme.forID(theme)
-        return VStack(alignment: .leading, spacing: 16) {
-            SectionTitle(text: "Everyday memory")
-            Text("How often does this happen to you lately?").font(t.body).foregroundStyle(t.secondaryText)
-            ForEach(EverydayMemoryCheck.items.indices, id: \.self) { i in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(EverydayMemoryCheck.items[i].text).font(t.bodyEmphasis).foregroundStyle(t.text)
-                    Picker("", selection: $memoryAnswers[i]) {
-                        ForEach(1...5, id: \.self) { v in Text(EverydayMemoryCheck.scale[v - 1]).tag(v) }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(t.primary)
-                }
-                .themedCard()
-            }
-            Toggle("I sometimes struggle to hear conversations", isOn: $hearing)
-                .font(t.body).foregroundStyle(t.text).tint(t.primary)
-                .themedCard()
-            Button("Continue") { next() }.buttonStyle(PrimaryButtonStyle())
-        }
-    }
-
-    private var wellbeingStep: some View {
-        let t = Theme.forID(theme)
-        return VStack(alignment: .leading, spacing: 16) {
-            SectionTitle(text: "Wellbeing (optional)")
-            Text("Mood, worry and sleep affect memory a lot. These standard questions (PHQ-9 and GAD-7) help the app read your practice fairly. Over the last 2 weeks, how often have you been bothered by…")
-                .font(t.body).foregroundStyle(t.secondaryText)
-            ForEach(PHQ9.items.indices, id: \.self) { i in questionRow(PHQ9.items[i], value: $phq[i]) }
-            ForEach(GAD7.items.indices, id: \.self) { i in questionRow(GAD7.items[i], value: $gad[i]) }
-            Button("Save & continue") {
-                didWellbeing = true
-                if PHQ9.needsSafetyResources(phq) { showCrisis = true }
-                next()
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            Button("Skip for now") { next() }.buttonStyle(SecondaryButtonStyle())
-        }
-    }
-
-    private func questionRow(_ text: String, value: Binding<Int>) -> some View {
-        let t = Theme.forID(theme)
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(text).font(t.bodyEmphasis).foregroundStyle(t.text)
-            Picker("", selection: value) {
-                ForEach(0..<4, id: \.self) { v in Text(frequencyOptions[v]).tag(v) }
-            }
-            .pickerStyle(.menu)
-            .tint(t.primary)
-        }
-        .themedCard()
-    }
-
     private var permissionsStep: some View {
         let t = Theme.forID(theme)
         return VStack(spacing: 16) {
-            SectionTitle(text: "Reminders that actually remind")
-            Text("Allow notifications so \(mascot) can nudge you. Reminders you set yourself can keep nudging until you tap Done.")
+            SectionTitle(text: "Reminders")
+            Text("Allow notifications for your daily training reminder and any personal reminders you set.")
                 .font(t.body).foregroundStyle(t.secondaryText)
-            Button("Allow notifications") {
-                Task { await Notifications.requestAuthorization() }
-            }
-            .buttonStyle(PrimaryButtonStyle())
+            Button("Allow notifications") { Task { await Notifications.requestAuthorization() } }
+                .buttonStyle(PrimaryButtonStyle())
             if AlarmService.isSupported {
-                Text("On this iPhone, important reminders can also ring like an alarm — even on silent.")
+                Text("Personal reminders can also ring like an alarm, even on silent.")
                     .font(t.body).foregroundStyle(t.secondaryText)
                 Button("Allow alarms") { Task { await AlarmService.requestAuthorization() } }
                     .buttonStyle(SecondaryButtonStyle())
@@ -228,15 +189,13 @@ struct OnboardingFlow: View {
         let t = Theme.forID(theme)
         return VStack(spacing: 20) {
             MascotView(mood: .happy, size: 150)
-            SectionTitle(text: "Your first week")
-            SpeechBubble(text: "For the next 7 days we'll play the same few short games each day. That shows how *you* learn over days — the most useful signal there is. After that: your own flashcards and reminders, with a check-in week once a month.")
-            Text("Tip: add a few personal cards (people, where things live) in Practice.")
+            SectionTitle(text: "First: your starting line")
+            SpeechBubble(text: "Today you'll do two short benchmarks — word recall and digit span — so you can see real change later. Then lesson one of the Memory Palace course.")
+            Text("Benchmarks repeat on days 14, 28 and 42, then monthly.")
                 .font(t.caption).foregroundStyle(t.secondaryText)
-            Button("Start my first quest") { finish() }.buttonStyle(PrimaryButtonStyle())
+            Button("Start") { finish() }.buttonStyle(PrimaryButtonStyle())
         }
     }
-
-    // MARK: Save
 
     private func finish() {
         let profile = existing ?? Profile()
@@ -244,59 +203,17 @@ struct OnboardingFlow: View {
         profile.displayName = name.trimmingCharacters(in: .whitespaces)
         profile.mascotName = mascot.trimmingCharacters(in: .whitespaces).isEmpty ? "Mochi" : mascot
         profile.theme = theme
-        let gentle = theme == .gildedAtelier
-        profile.errorlessNewCards = gentle
-        profile.simpleRatings = gentle
-        profile.desiredRetention = gentle ? 0.92 : 0.88
+        profile.dailyMinutes = minutes
         let hm = Calendar.current.dateComponents([.hour, .minute], from: reminder)
         profile.reminderHour = hm.hour ?? 19
         profile.reminderMinute = hm.minute ?? 30
-        let p = EverydayMemoryCheck.profile(memoryAnswers)
-        profile.complaintProspective = p.prospective
-        profile.complaintRetrospective = p.retrospective
-        profile.hearingConcern = hearing
-        if didWellbeing {
-            profile.phq9 = PHQ9.score(phq)
-            profile.gad7 = GAD7.score(gad)
-        }
-        profile.burstStart = Date()
-        profile.speedStart = Date()
+        profile.benchmarkStart = Date()
+        profile.courseDay = 1
         profile.timezoneID = TimeZone.current.identifier
         profile.onboardingComplete = true
-        if (try? context.fetchCount(FetchDescriptor<ChecklistItem>())) ?? 0 == 0 {
-            for (i, title) in ChecklistItem.defaults.enumerated() { context.insert(ChecklistItem(order: i, title: title)) }
-        }
         try? context.save()
         Notifications.replan(profile: profile)
         Router.shared.pending = .startQuest
         SFX.play(.levelup)
-    }
-}
-
-/// Shown if PHQ-9 item 9 is positive, and always reachable from Settings.
-struct CrisisResourcesView: View {
-    @Environment(\.theme) private var theme
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("You're not alone 💜").font(theme.display(30)).foregroundStyle(theme.text)
-                    Text("You mentioned thoughts of being better off dead or of hurting yourself. Please reach out to someone today — a person you trust, your doctor, or a helpline. Talking helps.")
-                        .font(theme.body).foregroundStyle(theme.text)
-                    Button("Call 1122 (Pakistan emergency)") { openURL(URL(string: "tel:1122")!) }
-                        .buttonStyle(PrimaryButtonStyle())
-                    Button("Find a free, confidential helpline") { openURL(URL(string: "https://findahelpline.com")!) }
-                        .buttonStyle(SecondaryButtonStyle())
-                    Text("Outside Pakistan, call your local emergency number. This app can't respond to emergencies.")
-                        .font(theme.caption).foregroundStyle(theme.secondaryText)
-                }
-                .padding(20)
-            }
-            .background(ThemedBackground())
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } } }
-        }
     }
 }

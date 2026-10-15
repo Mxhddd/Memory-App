@@ -7,22 +7,24 @@ struct GameOutcome {
     var total: Int
     var meanRTms: Double
     var score: Double
-    /// Rasch trials (difficulty, correct) for adaptive training days.
+    /// Rasch trials (difficulty, correct) for adaptive arcade drills.
     var trials: [(Double, Bool)] = []
+    /// The level actually played (n-back n, span reached…), if different from the requested size.
+    var level: Int? = nil
+    /// Where an adaptive drill should start next time (n-back staircase).
+    var nextLevel: Int? = nil
 }
 
 /// Everything a game needs to know about this run.
 struct GameContext {
     var task: RealmTask
     var seed: String
-    var burst: (burst: Int, day: Int)?
-    var level: Int           // 0…4 difficulty (fixed at 2 on burst days so measurement is constant)
-    var gentle: Bool         // errorless-friendly pacing & sizes (Mom's default)
-    var moonBell: Bool       // embed the prospective-memory cue
-    var wordForm: Int = 0
-    var delayedRecall: Bool = false
-
-    var isMeasurement: Bool { burst != nil }
+    var size: Int            // words, digits, stops, n-back level…
+    var level: Int           // 0…4 adaptive difficulty for arcade drills
+    var courseDay: Int
+    var palaceID: UUID?
+    var benchmarkForm: Int = 0
+    var isBenchmark: Bool = false
 }
 
 /// Adaptive difficulty for training days: one Rasch ability per task, persisted locally.
@@ -41,9 +43,9 @@ enum DifficultyStore {
         if let data = try? JSONEncoder().encode(ability) { UserDefaults.standard.set(data, forKey: "rasch.\(task.rawValue)") }
     }
 
-    static func level(for task: RealmTask, gentle: Bool) -> Int {
+    static func level(for task: RealmTask) -> Int {
         var a = ability(for: task)
-        a.target = gentle ? 0.9 : 0.75
+        a.target = 0.75
         return a.choose(from: Array(levels)) { difficulty(ofLevel: $0) } ?? 2
     }
 
@@ -82,63 +84,5 @@ extension Array {
     func shuffledSeeded(_ seed: String) -> [Element] {
         var rng = SeededRandom(seed)
         return shuffled(using: &rng)
-    }
-}
-
-// MARK: Prospective cue (Moon Bell)
-
-/// Overlays a moon (or brass bell) that appears once, briefly, during another task.
-/// The person was told at the start to tap it when it shows — a time/event-based intention.
-struct MoonBellOverlay: ViewModifier {
-    @Environment(\.theme) private var theme
-    let active: Bool
-    let gentle: Bool
-    let onResult: (Bool) -> Void
-
-    @State private var visible = false
-    @State private var resolved = false
-
-    func body(content: Content) -> some View {
-        content
-            .overlay(alignment: .topTrailing) {
-                if visible {
-                    Button {
-                        resolve(hit: true)
-                    } label: {
-                        Text(theme.id == .midnightRaccoon ? "🌙" : "🔔")
-                            .font(.system(size: 44))
-                            .frame(width: 72, height: 72)
-                            .background(Circle().fill(theme.raised))
-                            .overlay(Circle().strokeBorder(theme.ornament, lineWidth: 3))
-                    }
-                    .accessibilityLabel(theme.id == .midnightRaccoon ? "Moon" : "Bell")
-                    .padding(.top, 4)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .task {
-                guard active else { return }
-                let delay = UInt64(Double.random(in: 12...28) * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: delay)
-                guard !resolved else { return }
-                withAnimation(.spring) { visible = true }
-                SFX.play(.bell)
-                try? await Task.sleep(nanoseconds: UInt64((gentle ? 9.0 : 6.0) * 1_000_000_000))
-                if !resolved { resolve(hit: false) }
-            }
-    }
-
-    private func resolve(hit: Bool) {
-        guard !resolved else { return }
-        resolved = true
-        if hit { SFX.play(.shiny); Haptic.success() }
-        withAnimation { visible = false }
-        onResult(hit)
-    }
-}
-
-extension View {
-    func moonBell(active: Bool, gentle: Bool, onResult: @escaping (Bool) -> Void) -> some View {
-        modifier(MoonBellOverlay(active: active, gentle: gentle, onResult: onResult))
     }
 }

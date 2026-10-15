@@ -6,33 +6,25 @@ struct TodayView: View {
     @Bindable var profile: Profile
     @Environment(\.theme) private var theme
     @EnvironmentObject private var router: Router
-    @Query(sort: \CheckIn.date, order: .reverse) private var checkIns: [CheckIn]
     @Query(filter: #Predicate<Intention> { $0.active == true }, sort: \Intention.time) private var intentions: [Intention]
 
     @State private var steps: [QuestStep] = []
     @State private var playing: GameContext?
     @State private var reviewing = false
-    @State private var showCheckIn = false
+    @State private var lesson: Lesson?
     @State private var celebrate = false
-    @State private var delayedReady: DelayedRecall.Pending?
-
-    private var checkedInToday: Bool {
-        checkIns.first.map { Calendar.current.isDateInToday($0.date) } ?? false
-    }
 
     private var mood: MascotMood {
         if steps.allSatisfy(\.done) && !steps.isEmpty { return .happy }
-        let lastDays = Quest.activeDays(last: 3)
-        return lastDays == 0 && Quest.activeDays(last: 28) > 0 ? .sleepy : .idle
+        return Quest.activeDays(last: 3) == 0 && Quest.activeDays(last: 28) > 0 ? .sleepy : .idle
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
                 header
-                if !checkedInToday { checkInChip }
-                questCard
-                if let pending = delayedReady { delayedCard(pending) }
+                sessionCard
+                courseCard
                 nextIntentionCard
                 weekCard
             }
@@ -53,19 +45,22 @@ struct TodayView: View {
         .onChange(of: router.pending) { _, _ in handleRoute() }
         .task { handleRoute() }
         .fullScreenCover(item: Binding(get: { playing.map(GameItem.init) }, set: { if $0 == nil { playing = nil } })) { item in
-            GameHost(ctx: item.ctx, profile: profile) { completedQuest in
+            GameHost(ctx: item.ctx, profile: profile) { completed in
                 playing = nil
                 refresh()
-                if completedQuest { celebrate = true }
+                if completed { celebrate = true }
             }
             .environment(\.theme, theme)
         }
         .fullScreenCover(isPresented: $reviewing, onDismiss: refresh) {
-            NavigationStack { ReviewSessionView(profile: profile, countsForQuest: true) }
+            NavigationStack { ReviewSessionView(profile: profile, countsForSession: true) }
                 .environment(\.theme, theme)
         }
-        .sheet(isPresented: $showCheckIn, onDismiss: refresh) {
-            CheckInSheet().environment(\.theme, theme).presentationDetents([.medium, .large])
+        .sheet(item: $lesson, onDismiss: refresh) { l in
+            LessonView(lesson: l) {
+                if Quest.markLessonRead(l.id, profile: profile) { celebrate = true }
+            }
+            .environment(\.theme, theme)
         }
         .sheet(isPresented: $celebrate) {
             CelebrationSheet(profile: profile).environment(\.theme, theme).presentationDetents([.medium])
@@ -76,7 +71,7 @@ struct TodayView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            MascotView(mood: mood, size: theme.largeTargets ? 110 : 120)
+            MascotView(mood: mood, size: 112)
             VStack(alignment: .leading, spacing: 8) {
                 Text(mood == .sleepy ? theme.copy.napLine
                      : theme.copy.greeting(name: profile.displayName, mascot: profile.mascotName,
@@ -92,35 +87,16 @@ struct TodayView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var checkInChip: some View {
-        Button { showCheckIn = true } label: {
-            HStack {
-                Image(systemName: "heart.text.square.fill")
-                Text("Quick check-in: sleep, stress, mood")
-                Spacer()
-                Image(systemName: "chevron.right")
-            }
-            .font(theme.bodyEmphasis)
-            .foregroundStyle(theme.text)
-            .themedCard(raised: true)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var questCard: some View {
+    private var sessionCard: some View {
         let done = steps.filter(\.done).count
-        let burst = Quest.isBurstDay(profile) ? profile.planner.burstDay(for: Date()) : nil
         return VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text(theme.copy.questTitle).font(theme.display(28)).foregroundStyle(theme.text)
                 Spacer()
-                if let burst {
-                    Text("Check-in week · day \(burst.day)/7")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Capsule().fill(theme.accent.opacity(0.3)))
-                        .foregroundStyle(theme.text)
-                }
+                Text("~\(profile.dailyMinutes) min").font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Capsule().fill(theme.accent.opacity(0.3)))
+                    .foregroundStyle(theme.text)
             }
             ProgressPips(done: done, total: steps.count)
             ForEach(steps) { step in
@@ -156,14 +132,17 @@ struct TodayView: View {
         .themedCard()
     }
 
-    private func delayedCard(_ pending: DelayedRecall.Pending) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(theme.id == .midnightRaccoon ? "🛒 \(profile.mascotName) wants the list back" : "Letter recall")
-                .font(theme.bodyEmphasis).foregroundStyle(theme.text)
-            Text("Which words do you still remember from earlier? One minute.")
+    private var courseCard: some View {
+        let course = Quest.courseDay(profile)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Memory Palace course").font(theme.bodyEmphasis).foregroundStyle(theme.text)
+                Spacer()
+                Text("Day \(course.day) of \(Course.length)").font(theme.caption).foregroundStyle(theme.secondaryText)
+            }
+            ProgressView(value: Double(course.day - 1), total: Double(Course.length)).tint(theme.primary)
+            Text("Words: \(profile.wordLevel) · Digits: \(profile.digitLevel) · n-back: \(profile.nBackLevel)")
                 .font(theme.caption).foregroundStyle(theme.secondaryText)
-            Button("Recall now") { playing = Quest.delayedRecallContext(pending, profile: profile) }
-                .buttonStyle(PrimaryButtonStyle())
         }
         .themedCard(raised: true)
     }
@@ -202,7 +181,7 @@ struct TodayView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("This week").font(theme.caption).foregroundStyle(theme.secondaryText)
                 Text("\(days) of 4 days").font(theme.bodyEmphasis).foregroundStyle(theme.text)
-                Text(streak > 0 ? "\(streak)-week streak" : "Weekly goal: 4 days. Missed days never break anything.")
+                Text(streak > 0 ? "\(streak)-week streak" : "Weekly goal: 4 days. Missed days never reset anything.")
                     .font(theme.caption).foregroundStyle(theme.secondaryText)
             }
             Spacer()
@@ -219,7 +198,6 @@ struct TodayView: View {
 
     private func refresh() {
         steps = Quest.steps(for: profile)
-        delayedReady = DelayedRecall.ready()
         LiveActivityService.sync(profile: profile)
     }
 
@@ -227,52 +205,58 @@ struct TodayView: View {
         guard let destination = router.pending else { return }
         router.pending = nil
         refresh()
-        switch destination {
-        case .startQuest:
-            if let next = steps.first(where: { !$0.done }) { start(next) }
-        case .delayedRecall:
-            if let p = DelayedRecall.ready() { playing = Quest.delayedRecallContext(p, profile: profile) }
-        default: break
-        }
+        if destination == .startQuest, let next = steps.first(where: { !$0.done }) { start(next) }
     }
 
     private func start(_ step: QuestStep) {
         Haptic.tap()
         switch step.kind {
-        case .deck: reviewing = true
-        case .task(let t): playing = Quest.context(for: t, profile: profile)
+        case .vault: reviewing = true
+        case .lesson(let id): lesson = Course.lesson(id)
+        case .task(let t, let size): playing = Quest.context(for: t, size: size, profile: profile)
         }
     }
 
     private func title(for step: QuestStep) -> String {
         switch step.kind {
-        case .deck: return "Your memory cards"
-        case .task(let t): return theme.copy.realmName(t)
+        case .vault: return "Vault warm-up"
+        case .lesson(let id): return "Lesson · \(Course.lesson(id)?.title ?? "")"
+        case .task(let t, let size):
+            switch t {
+            case .wordSprint, .sprintRetention: return "\(theme.copy.realmName(t)) · \(size) words"
+            case .numberSprint: return "\(theme.copy.realmName(t)) · \(size) digits"
+            case .dualNBack: return "\(theme.copy.realmName(t)) · \(size)-back"
+            default: return theme.copy.realmName(t)
+            }
         }
     }
 
     private func subtitle(for step: QuestStep) -> String {
         switch step.kind {
-        case .deck:
+        case .vault:
             let due = Quest.dueCards().count
-            return due > 0 ? "\(due) ready to review" : "A quick look at your cards"
-        case .task(let t): return theme.copy.realmBlurb(t)
+            return due > 0 ? "\(due) cards ready — recall before you reveal" : "Cards reviewed"
+        case .lesson: return "A few minutes of technique"
+        case .task(let t, _): return theme.copy.realmBlurb(t)
         }
     }
 
     private func icon(for step: QuestStep) -> String {
         switch step.kind {
-        case .deck: return "rectangle.stack.fill"
-        case .task(let t):
+        case .vault: return "rectangle.stack.fill"
+        case .lesson: return "book.fill"
+        case .task(let t, _):
             switch t {
-            case .faceName: return "person.2.fill"
-            case .snackPrices: return "cart.fill"
-            case .wordList: return "list.bullet.rectangle"
-            case .stash: return "square.grid.3x3.fill"
+            case .routeWalk: return "figure.walk"
+            case .wordSprint, .sprintRetention: return "building.columns.fill"
+            case .numberSprint: return "number"
+            case .dualNBack: return "square.grid.3x3.fill"
+            case .complexSpan: return "plusminus"
             case .sequences: return "sparkles"
-            case .runeSort: return "bolt.fill"
-            case .moonBell: return "bell.fill"
+            case .faceName: return "person.2.fill"
             case .ancientRunes: return "character.book.closed.fill"
+            case .stash: return "shippingbox.fill"
+            case .wordRecall, .digitSpan: return "flag.checkered"
             }
         }
     }
@@ -281,57 +265,7 @@ struct TodayView: View {
 /// Identifiable wrapper so a `GameContext` can drive `fullScreenCover(item:)`.
 struct GameItem: Identifiable {
     let ctx: GameContext
-    var id: String { ctx.seed + (ctx.delayedRecall ? "-d" : "") }
-}
-
-// MARK: Check-in
-
-struct CheckInSheet: View {
-    @Environment(\.theme) private var theme
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    @State private var sleep = 2
-    @State private var stress = 2
-    @State private var mood = 2
-    @State private var unwell = false
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    row("Last night's sleep", value: $sleep, options: ["😴 Poor", "🙂 OK", "✨ Great"])
-                    row("Stress right now", value: $stress, options: ["🌿 Calm", "🌤 Some", "🌩 High"])
-                    row("Mood", value: $mood, options: ["🌧 Low", "⛅️ OK", "☀️ Good"])
-                    Toggle("Feeling unwell today", isOn: $unwell).font(theme.body).foregroundStyle(theme.text).tint(theme.primary)
-                    Text("This only helps read your practice fairly — on a rough day, lower scores are expected and never count against you.")
-                        .font(theme.caption).foregroundStyle(theme.secondaryText)
-                    Button("Save") {
-                        context.insert(CheckIn(sleep: sleep, stress: stress, mood: mood, unwell: unwell))
-                        try? context.save()
-                        Haptic.success()
-                        dismiss()
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                }
-                .padding(20)
-            }
-            .background(ThemedBackground())
-            .navigationTitle("Check-in")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private func row(_ title: String, value: Binding<Int>, options: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(theme.bodyEmphasis).foregroundStyle(theme.text)
-            HStack(spacing: 8) {
-                ForEach(0..<3, id: \.self) { i in
-                    Button(options[i]) { value.wrappedValue = i + 1; Haptic.tap() }
-                        .buttonStyle(ChoiceButtonStyle(state: value.wrappedValue == i + 1 ? .selected : .idle))
-                }
-            }
-        }
-    }
+    var id: String { ctx.seed + "-\(ctx.size)" }
 }
 
 // MARK: Celebration
@@ -345,12 +279,12 @@ struct CelebrationSheet: View {
         VStack(spacing: 16) {
             MascotView(mood: .happy, size: 140)
             Text(theme.copy.celebrations.randomElement() ?? "Done!").font(theme.display(32)).foregroundStyle(theme.text)
-            Text("Quest complete · +3 \(theme.copy.shinyName)").font(theme.bodyEmphasis).foregroundStyle(theme.ornament)
+            Text("Session complete · +3 \(theme.copy.shinyName)").font(theme.bodyEmphasis).foregroundStyle(theme.ornament)
             if let next = Sprites.trinketOrder[safe: (profile.shinies / 5) % Sprites.trinketOrder.count],
                let art = Sprites.trinkets[next] {
                 HStack {
                     PixelSpriteView(art: art).frame(width: 40, height: 40)
-                    Text("Something new sparkles in \(theme.copy.denTitle.lowercased())…").font(theme.caption).foregroundStyle(theme.secondaryText)
+                    Text("Something new sparkles on your shelf…").font(theme.caption).foregroundStyle(theme.secondaryText)
                 }
             }
             Button("Yay") { dismiss() }.buttonStyle(PrimaryButtonStyle())

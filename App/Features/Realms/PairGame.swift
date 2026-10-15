@@ -111,9 +111,10 @@ struct PairGame: View {
 // MARK: Builders for the three pair tasks
 
 enum PairBuilders {
-    static func pairCount(level: Int, gentle: Bool) -> Int {
-        let base = [4, 5, 6, 7, 8][min(max(level, 0), 4)]
-        return gentle ? max(4, base - 1) : base
+    /// Course drills ask for a size; arcade drills adapt through the Rasch level.
+    static func pairCount(_ ctx: GameContext) -> Int {
+        if ctx.size > 0 { return ctx.size }
+        return [4, 5, 6, 7, 8][min(max(ctx.level, 0), 4)]
     }
 
     static func distractors(answer: String, pool: [String], count: Int, seed: String) -> [String] {
@@ -122,7 +123,7 @@ enum PairBuilders {
     }
 
     static func faceName(_ ctx: GameContext) -> [PairItem] {
-        let villagers = Stimuli.villagers(count: pairCount(level: ctx.level, gentle: ctx.gentle), seed: ctx.seed)
+        let villagers = Stimuli.villagers(count: pairCount(ctx), seed: ctx.seed)
         let names = villagers.map(\.name)
         return villagers.enumerated().map { i, v in
             PairItem(id: i, cue: AnyView(PixelSpriteView(art: v.art).clipShape(RoundedRectangle(cornerRadius: 8))),
@@ -132,25 +133,12 @@ enum PairBuilders {
     }
 
     static func runes(_ ctx: GameContext, color: Color) -> [PairItem] {
-        let n = pairCount(level: ctx.level, gentle: ctx.gentle) + (ctx.gentle ? 0 : 1)
+        let n = pairCount(ctx) + 1
         let runes = Stimuli.runeSet(count: n, seed: ctx.seed)
         let meanings = Array(Stimuli.runeMeanings.shuffledSeeded(ctx.seed + "-m").prefix(n))
         return runes.enumerated().map { i, r in
             PairItem(id: i, cue: AnyView(RuneView(rune: r, color: color)), cueLabel: "Rune \(i + 1)",
                      answer: meanings[i], options: distractors(answer: meanings[i], pool: meanings, count: 3, seed: ctx.seed))
-        }
-    }
-
-    static func snackPrices(_ ctx: GameContext, theme: Theme) -> [PairItem] {
-        let items = Stimuli.pricedItems(count: pairCount(level: ctx.level, gentle: ctx.gentle), seed: ctx.seed)
-        let unit = theme.id == .midnightRaccoon ? "coins" : "rupees"
-        return items.enumerated().map { i, item in
-            let cue = VStack(spacing: 8) {
-                Text(item.emoji).font(.system(size: 96))
-                Text(item.name).font(theme.bodyEmphasis).foregroundStyle(theme.text)
-            }
-            return PairItem(id: i, cue: AnyView(cue), cueLabel: item.name, answer: "\(item.price) \(unit)",
-                            options: Stimuli.priceOptions(for: item, seed: ctx.seed).map { "\($0) \(unit)" })
         }
     }
 }

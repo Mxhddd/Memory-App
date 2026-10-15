@@ -1,6 +1,5 @@
 import WidgetKit
 import SwiftUI
-import AppIntents
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
@@ -56,7 +55,6 @@ struct SnapshotProvider: TimelineProvider {
         var copy = s
         copy.questDone = 0
         copy.questComplete = false
-        copy.lapsesToday = 0
         return copy
     }
 }
@@ -78,7 +76,7 @@ struct DenWidget: Widget {
                 .widgetURL(URL(string: "memorygarden://quest"))
         }
         .configurationDisplayName("The Den")
-        .description("Your companion, today's quest and your next reminder.")
+        .description("Your companion, today's training and your next reminder.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -108,7 +106,7 @@ struct DenWidgetView: View {
                         Label("\(s.dueCards) cards ready", systemImage: "rectangle.stack.fill").font(.caption).foregroundStyle(theme.secondaryText)
                     }
                     Spacer(minLength: 0)
-                    lapseButton(theme)
+                    Text("Course day \(s.courseDay)/42 · ✦ \(s.shinies)").font(.caption2.weight(.semibold)).foregroundStyle(theme.ornament)
                 }
             }
         default:
@@ -120,29 +118,18 @@ struct DenWidgetView: View {
                 }
                 questLine(s, theme)
                 Spacer(minLength: 0)
-                lapseButton(theme)
+                Text("Day \(s.courseDay)/42").font(.caption2.weight(.semibold)).foregroundStyle(theme.secondaryText)
             }
         }
     }
 
     private func questLine(_ s: WidgetSnapshot, _ theme: Theme) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(s.questComplete ? "Quest done ✨" : theme.copy.questTitle)
+            Text(s.questComplete ? "Trained today ✨" : theme.copy.questTitle)
                 .font(.subheadline.weight(.bold)).foregroundStyle(theme.text).lineLimit(1)
             ProgressView(value: Double(s.questDone), total: Double(max(s.questTotal, 1)))
                 .tint(theme.primary)
         }
-    }
-
-    private func lapseButton(_ theme: Theme) -> some View {
-        Button(intent: LogLapseIntent()) {
-            Label("I forgot something", systemImage: "exclamationmark.bubble.fill")
-                .font(.caption2.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .tint(theme.accent)
-        .foregroundStyle(theme.onPrimary)
     }
 }
 
@@ -155,7 +142,7 @@ struct LockScreenWidget: Widget {
                 .containerBackground(for: .widget) { Color.clear }
                 .widgetURL(URL(string: "memorygarden://quest"))
         }
-        .configurationDisplayName("Quest & reminders")
+        .configurationDisplayName("Training & reminders")
         .description("Today's progress or your next reminder, at a glance.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
@@ -179,11 +166,11 @@ struct LockScreenView: View {
             if let text = s.nextIntentionText, let time = s.nextIntentionTime {
                 Text("🔔 \(text) \(time, style: .time)")
             } else {
-                Text(s.questComplete ? "✨ Quest done" : "🌙 Quest \(s.questDone)/\(s.questTotal)")
+                Text(s.questComplete ? "✨ Trained today" : "🌙 Training \(s.questDone)/\(s.questTotal)")
             }
         default:
             VStack(alignment: .leading, spacing: 2) {
-                Text(s.questComplete ? "Quest done ✨" : "Quest \(s.questDone)/\(s.questTotal)").font(.headline)
+                Text(s.questComplete ? "Trained ✨" : "Training \(s.questDone)/\(s.questTotal)").font(.headline)
                 if let text = s.nextIntentionText, let time = s.nextIntentionTime {
                     Text("\(text) · \(time, style: .time)").font(.caption).lineLimit(1)
                 } else if s.dueCards > 0 {

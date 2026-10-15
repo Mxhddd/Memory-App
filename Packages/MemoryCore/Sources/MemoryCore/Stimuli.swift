@@ -3,7 +3,7 @@ import Foundation
 /// Original stimuli with alternate forms. Everything is generated from a seed, so a burst can
 /// reuse the *same* set for 7 days (learning curve) and the next burst gets a fresh one.
 public enum Stimuli {
-    // MARK: Word lists (episodic verbal) — concrete, high-imageability nouns
+    // MARK: Word lists (legacy short forms; sprints & benchmarks use `WordBank`)
 
     public static let wordForms: [[String]] = [
         ["lantern", "pillow", "carrot", "bridge", "violin", "candle", "garden", "button", "rabbit", "teapot", "mirror", "basket"],
@@ -42,40 +42,6 @@ public enum Stimuli {
         "Lily", "Theo", "Maya", "Leo", "Ruby", "Felix", "Ivy", "Hugo", "Nora", "Otto",
     ]
 
-    // MARK: Item–price (BRANCH-style groceries)
-
-    public struct PricedItem: Equatable, Sendable {
-        public let emoji: String
-        public let name: String
-        public let price: Int
-    }
-
-    public static let snacks: [(String, String)] = [
-        ("🍩", "Donut"), ("🍪", "Cookie"), ("🧁", "Cupcake"), ("🍙", "Rice ball"), ("🥐", "Croissant"),
-        ("🍌", "Banana"), ("🍎", "Apple"), ("🧀", "Cheese"), ("🥨", "Pretzel"), ("🍉", "Melon slice"),
-        ("🥟", "Dumpling"), ("🍓", "Strawberries"), ("🥜", "Peanuts"), ("🍞", "Bread"), ("🍫", "Chocolate"),
-        ("🥭", "Mango"), ("🍇", "Grapes"), ("🍑", "Peach"), ("🌽", "Corn"), ("🍯", "Honey"),
-    ]
-
-    public static func pricedItems(count: Int, seed: String) -> [PricedItem] {
-        var rng = SeededRandom(seed)
-        let picked = snacks.shuffled(using: &rng).prefix(count)
-        var prices = Array(2...29).shuffled(using: &rng)
-        return picked.map { PricedItem(emoji: $0.0, name: $0.1, price: prices.removeFirst()) }
-    }
-
-    /// Two plausible wrong prices near the true one.
-    public static func priceOptions(for item: PricedItem, seed: String) -> [Int] {
-        var rng = SeededRandom(seed + item.name)
-        var options: Set<Int> = [item.price]
-        while options.count < 3 {
-            let delta = Int.random(in: 2...7, using: &rng) * (Bool.random(using: &rng) ? 1 : -1)
-            let p = item.price + delta
-            if p > 0 { options.insert(p) }
-        }
-        return Array(options).shuffled(using: &rng)
-    }
-
     // MARK: Object–location (stash)
 
     public static let stashItems: [(String, String)] = [
@@ -111,11 +77,29 @@ public enum Stimuli {
     // MARK: Runes (invented glyphs — no prior-knowledge confound, ORCA-LLT style)
 
     /// A 7×7 left-right symmetric glyph built from a short random walk, so it looks like a "letter".
+    /// Glyphs that are too plain (a lone bar) are rejected and re-rolled.
     public static func rune(seed: String) -> [[Bool]] {
+        var attempt = 0
+        while true {
+            let r = rawRune(seed: attempt == 0 ? seed : "\(seed)~\(attempt)")
+            if isComplex(r) { return r }
+            attempt += 1
+        }
+    }
+
+    /// ≥ 10 filled cells spanning ≥ 4 rows and ≥ 4 columns.
+    public static func isComplex(_ r: [[Bool]]) -> Bool {
+        let filled = r.joined().filter { $0 }.count
+        let rows = r.filter { $0.contains(true) }.count
+        let cols = (0..<7).filter { c in r.contains { $0[c] } }.count
+        return filled >= 10 && rows >= 4 && cols >= 4
+    }
+
+    static func rawRune(seed: String) -> [[Bool]] {
         var rng = SeededRandom(seed)
         var grid = Array(repeating: Array(repeating: false, count: 7), count: 7)
         var x = Int.random(in: 1...3, using: &rng), y = Int.random(in: 0...1, using: &rng)
-        for _ in 0..<Int.random(in: 9...13, using: &rng) {
+        for _ in 0..<Int.random(in: 12...18, using: &rng) {
             grid[y][x] = true
             grid[y][6 - x] = true
             switch Int.random(in: 0..<4, using: &rng) {

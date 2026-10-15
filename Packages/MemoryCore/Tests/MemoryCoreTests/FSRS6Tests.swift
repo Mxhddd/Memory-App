@@ -63,31 +63,3 @@ final class FSRS6Tests: XCTestCase {
     }
 }
 
-final class ErrorlessTests: XCTestCase {
-    func testLadderGraduatesAfterAllRungs() {
-        var session = ErrorlessSession<String>()
-        let t0 = Date(timeIntervalSince1970: 0)
-        session.present("aunt", at: t0)
-        XCTAssertTrue(session.due(at: t0.addingTimeInterval(29)).isEmpty)
-        XCTAssertEqual(session.due(at: t0.addingTimeInterval(30)), ["aunt"])
-        var t = t0.addingTimeInterval(30)
-        for gap in [60.0, 120, 240] {
-            XCTAssertFalse(session.record("aunt", recalled: true, at: t))
-            t = t.addingTimeInterval(gap)
-            XCTAssertEqual(session.due(at: t), ["aunt"])
-        }
-        XCTAssertTrue(session.record("aunt", recalled: true, at: t))
-        XCTAssertTrue(session.isFinished)
-    }
-
-    func testMissRestartsLadderAndCountsPresentation() {
-        var session = ErrorlessSession<Int>()
-        let t0 = Date(timeIntervalSince1970: 0)
-        session.present(1, at: t0)
-        session.record(1, recalled: true, at: t0.addingTimeInterval(30))
-        session.record(1, recalled: false, at: t0.addingTimeInterval(90))
-        XCTAssertEqual(session.items[0].rung, 0)
-        XCTAssertEqual(session.items[0].presentations, 2)
-        XCTAssertEqual(session.secondsUntilNext(from: t0.addingTimeInterval(90))!, 30, accuracy: 1e-9)
-    }
-}

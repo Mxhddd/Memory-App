@@ -37,7 +37,7 @@ struct Theme {
     // Shape & feel
     let cornerRadius: CGFloat
     let pixelBorders: Bool
-    let largeTargets: Bool          // extra-large cards & buttons (Atelier / Mom)
+    let largeTargets: Bool          // roomier cards & buttons (Atelier)
 
     // Mascot
     let mascotIdle: PixelArt
@@ -161,64 +161,80 @@ struct ThemeCopy {
 
     static let raccoon = ThemeCopy(
         appTitle: "Midnight Den",
-        questTitle: "Tonight's Quest",
-        denTitle: "The Den",
+        questTitle: "Tonight's Training",
+        denTitle: "Progress",
         shinyName: "shinies",
         realmNames: [
-            .faceName: "Night Market Regulars",
-            .snackPrices: "Midnight Snack Prices",
-            .wordList: "Moonlit Shopping List",
-            .stash: "Mochi's Stash",
+            .routeWalk: "Den Walk",
+            .wordSprint: "Midnight Sprint",
+            .sprintRetention: "Dawn Recall",
+            .numberSprint: "Number Heist",
+            .dualNBack: "Firefly n-back",
+            .complexSpan: "Moon Maths Span",
             .sequences: "Firefly Sequences",
-            .runeSort: "Rune Sort",
-            .moonBell: "Moon Bell",
+            .faceName: "Night Market Regulars",
             .ancientRunes: "Ancient Runes",
+            .stash: "Mochi's Stash",
+            .wordRecall: "Benchmark · Word Recall",
+            .digitSpan: "Benchmark · Digit Span",
         ],
         realmBlurbs: [
-            .faceName: "Remember the regulars at the night market.",
-            .snackPrices: "How much was that donut again?",
-            .wordList: "Hold on to the shopping list.",
-            .stash: "Where did Mochi hide everything?",
+            .routeWalk: "Walk your palace until it's automatic.",
+            .wordSprint: "Place words along your palace, recall in order.",
+            .sprintRetention: "What survived the night?",
+            .numberSprint: "Digits → Major-system pictures.",
+            .dualNBack: "Positions + sounds, n steps back.",
+            .complexSpan: "Letters to keep while doing sums.",
             .sequences: "Follow the fireflies in order.",
-            .runeSort: "Match runes to numbers — quick paws!",
-            .moonBell: "When the moon peeks out, ring the bell.",
-            .ancientRunes: "Learn what the old runes mean.",
+            .faceName: "Hook names onto faces.",
+            .ancientRunes: "Link symbols to meanings.",
+            .stash: "Where did Mochi hide everything?",
+            .wordRecall: "30 words, any method. Your progress yardstick.",
+            .digitSpan: "How many digits can you hold?",
         ],
-        celebrations: ["Shiny get! ✨", "Mochi is so proud", "Tiny brain sparkle", "Den got cozier", "Paws up!"],
-        napLine: "Mochi took a nap. No worries — the den is right where you left it.",
+        celebrations: ["Shiny get! ✨", "Mochi is so proud", "Brain sparkle", "Den got cozier", "Paws up!"],
+        napLine: "Mochi took a nap. The den is right where you left it.",
         eveningSession: "Night Shift",
-        morningSession: "Dawn Check"
+        morningSession: "Dawn Recall"
     )
 
     static let atelier = ThemeCopy(
         appTitle: "Gilded Atelier",
-        questTitle: "Today's Practice",
-        denTitle: "The Atelier",
+        questTitle: "Today's Training",
+        denTitle: "Progress",
         shinyName: "gilded seals",
         realmNames: [
-            .faceName: "Salon Portraits",
-            .snackPrices: "Market Ledger",
-            .wordList: "Letter Recall",
-            .stash: "Cabinet of Curiosities",
+            .routeWalk: "Walk the Gallery",
+            .wordSprint: "Word Sprint",
+            .sprintRetention: "Morning Recall",
+            .numberSprint: "Number Sprint",
+            .dualNBack: "Dual n-back",
+            .complexSpan: "Operation Span",
             .sequences: "Constellations",
-            .runeSort: "Seal Matching",
-            .moonBell: "Brass Bell",
+            .faceName: "Salon Portraits",
             .ancientRunes: "Old Scripts",
+            .stash: "Cabinet of Curiosities",
+            .wordRecall: "Benchmark · Word Recall",
+            .digitSpan: "Benchmark · Digit Span",
         ],
         realmBlurbs: [
-            .faceName: "Remember the guests at the salon.",
-            .snackPrices: "Recall the prices in the ledger.",
-            .wordList: "Keep the letter's words in mind.",
-            .stash: "Where was each treasure placed?",
+            .routeWalk: "Walk your palace until it's automatic.",
+            .wordSprint: "Place words along your palace, recall in order.",
+            .sprintRetention: "What remained overnight?",
+            .numberSprint: "Digits become Major-system pictures.",
+            .dualNBack: "Positions and sounds, n steps back.",
+            .complexSpan: "Hold letters while checking sums.",
             .sequences: "Retrace the stars in order.",
-            .runeSort: "Match each seal to its number.",
-            .moonBell: "When the bell appears, tap it.",
-            .ancientRunes: "Learn the meaning of old letters.",
+            .faceName: "Hook names onto faces.",
+            .ancientRunes: "Link symbols to meanings.",
+            .stash: "Where was each treasure placed?",
+            .wordRecall: "30 words, any method. Your yardstick.",
+            .digitSpan: "How many digits can you hold?",
         ],
-        celebrations: ["Beautifully done", "Well remembered", "A fine effort", "Splendid"],
+        celebrations: ["Beautifully done", "Well remembered", "Splendid", "Sharp as ever"],
         napLine: "The atelier waited patiently. Welcome back.",
         eveningSession: "Evening study",
-        morningSession: "Morning review"
+        morningSession: "Morning recall"
     )
 }
 

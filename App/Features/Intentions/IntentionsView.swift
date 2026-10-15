@@ -9,28 +9,9 @@ struct IntentionsView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Intention.time) private var intentions: [Intention]
     @State private var adding = false
-    @State private var lapseLogged = false
 
     var body: some View {
         List {
-            Section {
-                Button {
-                    context.insert(LapseLog())
-                    try? context.save()
-                    lapseLogged = true
-                    Haptic.soft()
-                    WidgetBridge.update(profile: profile)
-                } label: {
-                    Label("I just forgot something", systemImage: "exclamationmark.bubble.fill")
-                        .font(theme.bodyEmphasis)
-                        .frame(minHeight: theme.minTouch)
-                }
-                .foregroundStyle(theme.text)
-            } footer: {
-                Text(lapseLogged ? "Noted — no judgement. It helps tailor your practice." : "Log everyday slips here or from the widget. They guide which games you get more of.")
-            }
-            .listRowBackground(theme.surface)
-
             if intentions.isEmpty {
                 Section {
                     Text("Add a reminder like “Call Aunty at 3 pm” or “When I leave the house → take my keys”.")

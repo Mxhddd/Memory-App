@@ -19,9 +19,6 @@ enum WidgetBridge {
                 .map { (i.text, $0) }
         }.min { $0.1 < $1.1 }
 
-        let startOfDay = Calendar.current.startOfDay(for: now)
-        let lapses = (try? Store.context.fetchCount(FetchDescriptor<LapseLog>(predicate: #Predicate { $0.date >= startOfDay }))) ?? 0
-
         let snapshot = WidgetSnapshot(
             themeRaw: profile.themeRaw,
             mascotName: profile.mascotName,
@@ -32,7 +29,7 @@ enum WidgetBridge {
             nextIntentionText: upcoming?.0,
             nextIntentionTime: upcoming?.1,
             shinies: profile.shinies,
-            lapsesToday: lapses,
+            courseDay: profile.courseDay,
             updatedAt: now
         )
         SharedStore.writeSnapshot(snapshot)

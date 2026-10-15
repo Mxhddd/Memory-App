@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import MemoryCore
 
-/// Everything lives on this phone (SwiftData). Only a tiny completion-status row is ever synced.
+/// Everything lives on this phone (SwiftData). Only a tiny "practised today" row is ever synced.
 
 @Model
 final class Profile {
@@ -12,31 +12,37 @@ final class Profile {
     var themeRaw: String = ThemeID.midnightRaccoon.rawValue
     var onboardingComplete: Bool = false
 
-    // Training settings
-    var desiredRetention: Double = 0.88
-    var errorlessNewCards: Bool = false
-    var simpleRatings: Bool = false
+    // Session
+    var dailyMinutes: Int = 15
     var reminderHour: Int = 19
     var reminderMinute: Int = 30
     var eveningNudge: Bool = true
 
-    // Schedules
-    var burstStart: Date = Date()
-    var speedStart: Date = Date()
+    // Memory Palace course (advances only on days you train — never skips ahead)
+    var courseDay: Int = 1
+    var lastCourseAdvance: Date?
+    var lessonsRead: [String] = []
+    var wordLevel: Int = 10
+    var digitLevel: Int = 6
 
-    // Engagement
+    // Working-memory gym
+    var nBackLevel: Int = 2
+    var showNBackLetters: Bool = false
+
+    // Benchmarks
+    var benchmarkStart: Date = Date()
+    var lastBenchmark: Date?
+    var benchmarkCount: Int = 0
+
+    // Vault
+    var desiredRetention: Double = 0.9
+    var typedAnswers: Bool = true
+
+    // Rewards
     var shinies: Int = 0
-    var streakFreezes: Int = 2
-
-    // Self-report (onboarding & weekly)
-    var complaintProspective: Double = 0
-    var complaintRetrospective: Double = 0
-    var phq9: Int?
-    var gad7: Int?
-    var hearingConcern: Bool = false
 
     // Circle
-    var whatsappNumber: String = ""   // digits incl. country code, used for supporters' "nudge" button
+    var whatsappNumber: String = ""
     var timezoneID: String = TimeZone.current.identifier
 
     init() {}
@@ -46,10 +52,10 @@ final class Profile {
         set { themeRaw = newValue.rawValue }
     }
 
-    var planner: BurstPlanner { BurstPlanner(start: burstStart) }
+    var benchmarks: BenchmarkPlanner { BenchmarkPlanner(start: benchmarkStart) }
 }
 
-/// One completed task (a game) — the raw material for learning curves and trends.
+/// One finished drill or benchmark — the raw material for progress charts.
 @Model
 final class TaskSession {
     var id: UUID = UUID()
@@ -58,14 +64,14 @@ final class TaskSession {
     var correct: Int = 0
     var total: Int = 0
     var meanRTms: Double = 0
-    var burstIndex: Int = -1     // -1 = training day
-    var burstDay: Int = 0
+    var score: Double = 0        // task-specific, roughly 0…1
+    var level: Int = 0           // sprint size, n-back level, span…
     var seed: String = ""
-    var isDelayedRecall: Bool = false
-    var score: Double = 0        // task-specific (accuracy, span, items/min…) normalised to roughly 0…1
+    var courseDay: Int = 0
+    var isBenchmark: Bool = false
 
-    init(task: RealmTask, correct: Int, total: Int, meanRTms: Double, score: Double, seed: String,
-         burst: (burst: Int, day: Int)?, delayed: Bool = false, date: Date = Date()) {
+    init(task: RealmTask, correct: Int, total: Int, meanRTms: Double, score: Double, level: Int,
+         seed: String, courseDay: Int, isBenchmark: Bool = false, date: Date = Date()) {
         id = UUID()
         self.date = date
         taskRaw = task.rawValue
@@ -73,22 +79,39 @@ final class TaskSession {
         self.total = total
         self.meanRTms = meanRTms
         self.score = score
+        self.level = level
         self.seed = seed
-        burstIndex = burst?.burst ?? -1
-        burstDay = burst?.day ?? 0
-        isDelayedRecall = delayed
+        self.courseDay = courseDay
+        self.isBenchmark = isBenchmark
     }
 
     var task: RealmTask { RealmTask(rawValue: taskRaw) ?? .faceName }
     var accuracy: Double { total > 0 ? Double(correct) / Double(total) : 0 }
 }
 
-/// A personal flashcard (names & faces, where things are, routines). Scheduled with FSRS-6.
+/// A memory palace: a familiar route with ordered stops.
+@Model
+final class Palace {
+    var id: UUID = UUID()
+    var name: String = ""
+    var stops: [String] = []
+    var createdAt: Date = Date()
+    var lastUsed: Date?
+
+    init(name: String, stops: [String] = []) {
+        id = UUID()
+        self.name = name
+        self.stops = stops
+        createdAt = Date()
+    }
+}
+
+/// A Vault card: anything worth knowing, scheduled with FSRS-6.
 @Model
 final class MemoryCard {
     var id: UUID = UUID()
     var createdAt: Date = Date()
-    var kindRaw: String = CardKind.person.rawValue
+    var deck: String = "General"
     var prompt: String = ""
     var answer: String = ""
     var hint: String = ""
@@ -101,14 +124,13 @@ final class MemoryCard {
     var difficulty: Double?
     var due: Date = Date()
     var lastReview: Date?
-    var needsErrorless: Bool = true   // new cards start errorless when the profile wants it
     var reps: Int = 0
     var lapses: Int = 0
 
-    init(kind: CardKind, prompt: String, answer: String, hint: String = "", photo: Data? = nil) {
+    init(deck: String, prompt: String, answer: String, hint: String = "", photo: Data? = nil) {
         id = UUID()
         createdAt = Date()
-        kindRaw = kind.rawValue
+        self.deck = deck
         self.prompt = prompt
         self.answer = answer
         self.hint = hint
@@ -116,7 +138,6 @@ final class MemoryCard {
         due = Date()
     }
 
-    var kind: CardKind { CardKind(rawValue: kindRaw) ?? .fact }
     var isNew: Bool { lastReview == nil }
 
     var fsrs: FSRSCard {
@@ -131,38 +152,6 @@ final class MemoryCard {
             difficulty = newValue.difficulty
             due = newValue.due
             lastReview = newValue.lastReview
-        }
-    }
-}
-
-enum CardKind: String, CaseIterable, Identifiable, Codable {
-    case person, place, routine, fact
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .person: return "Person"
-        case .place: return "Where it lives"
-        case .routine: return "Routine"
-        case .fact: return "Fact"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .person: return "person.crop.circle"
-        case .place: return "key.fill"
-        case .routine: return "clock.arrow.circlepath"
-        case .fact: return "lightbulb"
-        }
-    }
-
-    var promptPlaceholder: String {
-        switch self {
-        case .person: return "Who is this? (e.g. neighbour with the yellow scarf)"
-        case .place: return "Where do I keep… (e.g. the spare keys)"
-        case .routine: return "What do I do when… (e.g. I leave the house)"
-        case .fact: return "Question"
         }
     }
 }
@@ -182,7 +171,7 @@ final class ReviewLogEntry {
     }
 }
 
-/// A prospective-memory reminder the person sets for themselves ("call Aunty at 3 pm").
+/// A reminder the person sets for themselves ("call Aunty at 3 pm").
 @Model
 final class Intention {
     var id: UUID = UUID()
@@ -237,38 +226,6 @@ enum ReminderLevel: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// Daily 3-tap check-in: covariates for scoring (never a diagnosis).
-@Model
-final class CheckIn {
-    var date: Date = Date()
-    var sleep: Int = 2   // 1 poor, 2 ok, 3 great
-    var stress: Int = 2  // 1 calm, 2 some, 3 high
-    var mood: Int = 2    // 1 low, 2 ok, 3 good
-    var unwell: Bool = false
-
-    init(sleep: Int, stress: Int, mood: Int, unwell: Bool, date: Date = Date()) {
-        self.sleep = sleep
-        self.stress = stress
-        self.mood = mood
-        self.unwell = unwell
-        self.date = date
-    }
-
-    /// Flags that make a dip "explained" (blocks the doctor card).
-    var isConfounder: Bool { sleep == 1 || mood == 1 || unwell || stress == 3 }
-}
-
-/// Everyday slips logged from the widget or app ("I forgot something").
-@Model
-final class LapseLog {
-    var date: Date = Date()
-    var note: String = ""
-    init(date: Date = Date(), note: String = "") {
-        self.date = date
-        self.note = note
-    }
-}
-
 /// Someone who gets completion-only alerts through the free ntfy app.
 @Model
 final class Supporter {
@@ -299,12 +256,12 @@ final class Supporter {
     var subscribeURL: URL { URL(string: "https://ntfy.sh/\(topic)")! }
 }
 
-/// One row per calendar day: did the quest happen, how many prompts were sent.
+/// One row per calendar day.
 @Model
 final class DayRecord {
     var day: Date = Date()
     var questDone: Bool = false
-    var deckDone: Bool = false
+    var vaultDone: Bool = false
     var stepsDone: Int = 0
     var stepsTotal: Int = 0
     var completedAt: Date?
@@ -312,22 +269,4 @@ final class DayRecord {
     init(day: Date) {
         self.day = Calendar.current.startOfDay(for: day)
     }
-}
-
-/// "Before anything else, real life": reversible-cause checks to discuss with a doctor.
-@Model
-final class ChecklistItem {
-    var order: Int = 0
-    var title: String = ""
-    var done: Bool = false
-    init(order: Int, title: String) {
-        self.order = order
-        self.title = title
-    }
-
-    static let defaults = [
-        "Thyroid check (TSH)", "Vitamin B12", "Iron / ferritin", "Vitamin D",
-        "Sleep — snoring or pauses in breathing?", "Mood & stress", "Hearing check",
-        "Review current medicines", "Hormonal changes (e.g. perimenopause), if relevant",
-    ]
 }

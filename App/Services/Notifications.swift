@@ -12,7 +12,7 @@ import MemoryCore
 enum Notifications {
     static let center = UNUserNotificationCenter.current()
 
-    enum Category: String { case quest = "MG_QUEST", intention = "MG_INTENTION", recall = "MG_RECALL" }
+    enum Category: String { case quest = "MG_QUEST", intention = "MG_INTENTION" }
     enum Action: String { case done = "MG_DONE", snooze = "MG_SNOOZE10", tonight = "MG_TONIGHT", start = "MG_START" }
 
     static let followUps: [TimeInterval] = [5 * 60, 15 * 60]
@@ -37,7 +37,6 @@ enum Notifications {
         center.setNotificationCategories([
             UNNotificationCategory(identifier: Category.intention.rawValue, actions: [done, snooze, tonight], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.quest.rawValue, actions: [start, tonight], intentIdentifiers: []),
-            UNNotificationCategory(identifier: Category.recall.rawValue, actions: [start], intentIdentifiers: []),
         ])
     }
 
@@ -69,7 +68,7 @@ enum Notifications {
                let at = calendar.date(bySettingHour: 20, minute: 45, second: 0, of: day), at > now {
                 let c = UNMutableNotificationContent()
                 c.title = theme.id == .midnightRaccoon ? "\(theme.copy.eveningSession)? 🌙" : "A quiet moment for practice?"
-                c.body = theme.id == .midnightRaccoon ? "\(profile.mascotName) saved you a spot in the den. Five minutes." : "Your practice is ready whenever you are."
+                c.body = theme.id == .midnightRaccoon ? "\(profile.mascotName) saved you a spot in the den. Train before bed — sleep locks it in." : "Your training is ready whenever you are."
                 c.sound = .default
                 c.categoryIdentifier = Category.quest.rawValue
                 c.threadIdentifier = "quest"
@@ -97,7 +96,7 @@ enum Notifications {
         let keep = planned.sorted { $0.date < $1.date }.prefix(maxPlanned)
         Task {
             let pending = await center.pendingNotificationRequests()
-            let ours = pending.map(\.identifier).filter { !$0.hasPrefix("recall.") && !$0.hasPrefix("snooze.") }
+            let ours = pending.map(\.identifier).filter { !$0.hasPrefix("snooze.") }
             center.removePendingNotificationRequests(withIdentifiers: ours)
             for p in keep {
                 let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: p.date)
@@ -121,10 +120,10 @@ enum Notifications {
         let c = UNMutableNotificationContent()
         if theme.id == .midnightRaccoon {
             c.title = missYou ? "\(profile.mascotName) misses you 🦝" : "\(profile.mascotName) is waiting in the den ✨"
-            c.body = missYou ? "No pressure — the den is right where you left it. Five minutes?" : "\(theme.copy.questTitle) is ready. About five minutes."
+            c.body = missYou ? "Your course picks up exactly where you left off." : "\(theme.copy.questTitle) is ready — about \(profile.dailyMinutes) minutes."
         } else {
-            c.title = missYou ? "Welcome back whenever you're ready" : "Today's practice is ready"
-            c.body = "About five minutes, at your own pace."
+            c.title = missYou ? "Welcome back whenever you're ready" : "Today's training is ready"
+            c.body = "About \(profile.dailyMinutes) minutes. Your course continues where you left off."
         }
         c.sound = .default
         c.categoryIdentifier = Category.quest.rawValue
@@ -147,18 +146,6 @@ enum Notifications {
     }
 
     // MARK: One-offs
-
-    static func scheduleDelayedRecall(mascot: String, theme: ThemeID) {
-        let c = UNMutableNotificationContent()
-        c.title = theme == .midnightRaccoon ? "\(mascot) wants the shopping list back 🛒" : "Time to recall the letter's words"
-        c.body = "A quick 1-minute recall — it's part of today's practice."
-        c.sound = .default
-        c.categoryIdentifier = Category.recall.rawValue
-        c.interruptionLevel = .active
-        c.userInfo = ["link": "delayedRecall"]
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: DelayedRecall.delay, repeats: false)
-        center.add(UNNotificationRequest(identifier: "recall.word", content: c, trigger: trigger))
-    }
 
     static func markIntentionDone(_ id: UUID) {
         guard let intention = (try? Store.context.fetch(FetchDescriptorFactory.intention(id)))?.first else { return }
