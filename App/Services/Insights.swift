@@ -15,9 +15,34 @@ struct BenchmarkTrend {
     var unit: String
     var points: [TrendPoint]
     var reliablyImproved: Bool
+    /// Personal noise and practice effect, once the three baseline sessions exist.
+    var personal: Improvement.Personal? = nil
 
-    var baseline: Double? { points.first?.value }
+    var baseline: Double? { personal?.baseline ?? points.first?.value }
     var latest: Double? { points.last?.value }
+    var unitPlural: String { title == "Word recall" ? "words" : "digits" }
+    var unitSingular: String { title == "Word recall" ? "word" : "digit" }
+    var baselineLeft: Int { max(0, BenchmarkPlanner.baselineSessions - points.count) }
+    /// The band of scores that are just normal day-to-day variation around the baseline.
+    var band: ClosedRange<Double>? {
+        guard let p = personal else { return nil }
+        let half = p.threshold - p.expectedGain
+        return max(0, p.baseline + p.expectedGain - half)...(p.baseline + p.threshold)
+    }
+}
+
+struct ChampionResult: Identifiable {
+    var date: Date
+    var immediate: Int
+    var nextDay: Int?
+    var id: Date { date }
+}
+
+struct RetentionPoint: Identifiable {
+    var offset: Int
+    var mean: Double
+    var count: Int
+    var id: Int { offset }
 }
 
 struct InsightsReport {
@@ -29,6 +54,8 @@ struct InsightsReport {
     var bestDigitSprint = 0
     var bestNBack = 0
     var bestRetention: Double?
+    var champion: [ChampionResult] = []
+    var whatSticks: [RetentionPoint] = []
     var activeDays28 = 0
     var weeklyStreak = 0
 }
@@ -46,12 +73,31 @@ enum Insights {
         let span = points(.digitSpan)
         r.wordRecall.points = words
         r.digitSpan.points = span
-        if let b = words.first?.value, let l = words.last?.value, words.count >= 2 {
-            r.wordRecall.reliablyImproved = Improvement.isReliable(baseline: b, latest: l, norms: Improvement.wordRecall)
+        // Judged against the personal baseline (first three sessions) once it exists.
+        func judge(_ trend: inout BenchmarkTrend, norms: Improvement.Norms) {
+            let pts = trend.points
+            trend.personal = Improvement.personal(baselines: pts.prefix(BenchmarkPlanner.baselineSessions).map(\.value), prior: norms)
+            if let p = trend.personal {
+                trend.reliablyImproved = pts.count > BenchmarkPlanner.baselineSessions && Improvement.isReliable(latest: pts.last!.value, personal: p)
+            } else if let b = pts.first?.value, let l = pts.last?.value, pts.count >= 2 {
+                trend.reliablyImproved = Improvement.isReliable(baseline: b, latest: l, norms: norms)
+            }
         }
-        if let b = span.first?.value, let l = span.last?.value, span.count >= 2 {
-            r.digitSpan.reliablyImproved = Improvement.isReliable(baseline: b, latest: l, norms: Improvement.digitSpan)
+        judge(&r.wordRecall, norms: Improvement.wordRecall)
+        judge(&r.digitSpan, norms: Improvement.digitSpan)
+
+        let delayed = sessions.filter { $0.task == .championDelayed }
+        r.champion = sessions.filter { $0.task == .championTest }.map { test in
+            let next = delayed.first { $0.seed == test.seed && $0.date > test.date
+                && Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: test.date), to: Calendar.current.startOfDay(for: $0.date)).day == 1 }
+            return ChampionResult(date: test.date, immediate: test.correct, nextDay: next?.correct)
         }
+        // What sticks: share of a sprint list recalled straight away, after a night, and 3/7/21 days on.
+        let retention: [(offset: Int, score: Double)] =
+            sessions.filter { $0.task == .wordSprint }.map { (0, $0.score) }
+            + sessions.filter { $0.task == .sprintRetention }.map { (1, $0.score) }
+            + sessions.filter { $0.task == .listReview }.map { ($0.reviewOffset, $0.score) }
+        r.whatSticks = ListReview.curve(retention).map { RetentionPoint(offset: $0.offset, mean: $0.mean, count: $0.count) }
 
         r.nBackLevels = points(.dualNBack)
         r.bestNBack = Int(r.nBackLevels.map(\.value).max() ?? 0)
@@ -84,7 +130,7 @@ enum Exporter {
         }
         root["sessions"] = ((try? ctx.fetch(FetchDescriptor<TaskSession>())) ?? []).map {
             ["date": d($0.date), "task": $0.taskRaw, "correct": $0.correct, "total": $0.total, "score": $0.score,
-             "level": $0.level, "courseDay": $0.courseDay, "benchmark": $0.isBenchmark] as [String: Any]
+             "level": $0.level, "courseDay": $0.courseDay, "benchmark": $0.isBenchmark, "reviewOffset": $0.reviewOffset] as [String: Any]
         }
         root["cards"] = ((try? ctx.fetch(FetchDescriptor<MemoryCard>())) ?? []).map {
             ["deck": $0.deck, "prompt": $0.prompt, "answer": $0.answer, "hint": $0.hint, "due": d($0.due),

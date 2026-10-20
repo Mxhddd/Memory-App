@@ -36,6 +36,10 @@ final class Profile {
     var lastBenchmark: Date?
     var benchmarkCount: Int = 0
 
+    // Champion test (72 words, Dresler et al. 2017)
+    var championCount: Int = 0
+    var lastChampion: Date?
+
     // Vault
     var desiredRetention: Double = 0.9
     var typedAnswers: Bool = true
@@ -71,9 +75,13 @@ final class TaskSession {
     var seed: String = ""
     var courseDay: Int = 0
     var isBenchmark: Bool = false
+    /// The palace the words were placed in, so re-recalls walk the same route.
+    var palaceID: UUID?
+    /// Days after learning for a list re-recall (3, 7 or 21); 0 otherwise.
+    var reviewOffset: Int = 0
 
     init(task: RealmTask, correct: Int, total: Int, meanRTms: Double, score: Double, level: Int,
-         seed: String, courseDay: Int, isBenchmark: Bool = false, date: Date = Date()) {
+         seed: String, courseDay: Int, isBenchmark: Bool = false, palaceID: UUID? = nil, reviewOffset: Int = 0, date: Date = Date()) {
         id = UUID()
         self.date = date
         taskRaw = task.rawValue
@@ -85,6 +93,8 @@ final class TaskSession {
         self.seed = seed
         self.courseDay = courseDay
         self.isBenchmark = isBenchmark
+        self.palaceID = palaceID
+        self.reviewOffset = reviewOffset
     }
 
     var task: RealmTask { RealmTask(rawValue: taskRaw) ?? .faceName }

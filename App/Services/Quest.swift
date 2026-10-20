@@ -13,6 +13,7 @@ struct QuestStep: Identifiable, Hashable {
     var kind: QuestStepKind
     var done: Bool
     var isBenchmark: Bool = false
+    var reviewOffset: Int = 0
     var id: String {
         switch kind {
         case .vault: return "vault"
@@ -25,10 +26,11 @@ struct QuestStep: Identifiable, Hashable {
 /// Builds today's session and records results.
 ///
 ///  1. Vault warm-up (due cards)
-///  2. Memory Palace course day: lesson + drills (the course only advances on days you train)
-///  3. Yesterday's sprint, recalled again (consolidation check)
-///  4. Working-memory gym on alternate days
-///  5. Benchmarks on days 0, 14, 28, 42, then monthly (technique-free transfer tests)
+///  2. Benchmarks: three baseline days first, then days 14, 28, 42 and monthly (technique-free)
+///  3. Champion test on the first course day, at the end and monthly; its recall the next day
+///  4. Memory Palace course day: lesson + drills (waits for the baseline; advances on days you train)
+///  5. Yesterday's sprint recalled again, plus at most one older list (3, 7 or 21 days on)
+///  6. Working-memory gym on alternate days
 @MainActor
 enum Quest {
     static func salt(_ profile: Profile) -> String { String(Int(profile.createdAt.timeIntervalSince1970)) }
@@ -83,8 +85,57 @@ enum Quest {
     }
 
     static func benchmarkDue(_ profile: Profile, date: Date = Date()) -> Bool {
-        profile.benchmarks.isDue(on: date, lastCompleted: profile.lastBenchmark)
+        profile.benchmarks.isDue(on: date, lastCompleted: profile.lastBenchmark, completed: profile.benchmarkCount)
             || sessions(on: date).contains { $0.isBenchmark } // keep showing today's battery once started
+    }
+
+    static func benchmarkDoneToday(_ profile: Profile, date: Date = Date()) -> Bool {
+        Calendar.current.isDate(profile.lastBenchmark ?? .distantPast, inSameDayAs: date)
+    }
+
+    /// The first three benchmark days are a personal baseline: no technique yet, so the course waits.
+    static func inBaseline(_ profile: Profile, date: Date = Date()) -> Bool {
+        profile.benchmarkCount - (benchmarkDoneToday(profile, date: date) ? 1 : 0) < BenchmarkPlanner.baselineSessions
+    }
+
+    static func championYesterday(date: Date = Date()) -> TaskSession? {
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) else { return nil }
+        return sessions(on: yesterday).first { $0.task == .championTest }
+    }
+
+    static func championDue(_ profile: Profile, date: Date = Date()) -> Bool {
+        if sessions(on: date).contains(where: { $0.task == .championTest }) { return true }
+        let plan = Store.dayRecord(for: date).planCourseDay ?? profile.courseDay
+        let since = profile.lastChampion.flatMap { Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: $0), to: Calendar.current.startOfDay(for: date)).day }
+        return ChampionTest.isDue(courseDay: plan, taken: profile.championCount, daysSinceLast: since)
+    }
+
+    static func dayIndex(_ date: Date) -> Int { Calendar.current.ordinality(of: .day, in: .era, for: date) ?? 0 }
+
+    /// The best sprint of each recent day: the lists that come back 3, 7 and 21 days later.
+    static func sprintLists(date: Date = Date()) -> [(list: ListReview.List, palaceID: UUID?)] {
+        let since = Calendar.current.date(byAdding: .day, value: -40, to: date)!
+        let raw = RealmTask.wordSprint.rawValue
+        let d = FetchDescriptor<TaskSession>(predicate: #Predicate { $0.taskRaw == raw && $0.date >= since })
+        let all = (try? Store.context.fetch(d)) ?? []
+        var lists: [(list: ListReview.List, palaceID: UUID?)] = []
+        for (day, sameDay) in Dictionary(grouping: all, by: { dayIndex($0.date) }) {
+            guard let best = sameDay.max(by: { $0.level < $1.level }) else { continue }
+            lists.append((list: ListReview.List(seed: best.seed, size: best.level, day: day), palaceID: best.palaceID))
+        }
+        return lists
+    }
+
+    /// Today's later re-recall: the one already played today, or the most overdue one.
+    static func listReviewFor(date: Date = Date()) -> (due: ListReview.Due, done: Bool)? {
+        if let s = sessions(on: date).first(where: { $0.task == .listReview }) {
+            return (due: ListReview.Due(seed: s.seed, size: s.level, offset: s.reviewOffset), done: true)
+        }
+        let raw = RealmTask.listReview.rawValue
+        let reviews = (try? Store.context.fetch(FetchDescriptor<TaskSession>(predicate: #Predicate { $0.taskRaw == raw }))) ?? []
+        let done = Set(reviews.map { ListReview.key(seed: $0.seed, offset: $0.reviewOffset) })
+        guard let due = ListReview.due(lists: sprintLists(date: date).map(\.list), done: done, today: dayIndex(date)) else { return nil }
+        return (due: due, done: false)
     }
 
     static func yesterdaysSprint() -> TaskSession? {
@@ -106,17 +157,29 @@ enum Quest {
             steps.append(QuestStep(kind: .task(.digitSpan, size: 3), done: done(.digitSpan), isBenchmark: true))
         }
 
-        let course = courseDay(profile, date: date)
-        if let lesson = course.lesson {
-            steps.append(QuestStep(kind: .lesson(lesson.id), done: profile.lessonsRead.contains(lesson.id)))
-        }
-        for drill in course.drills {
-            let task = Self.task(for: drill.kind)
-            steps.append(QuestStep(kind: .task(task, size: drill.size), done: done(task)))
+        if !inBaseline(profile, date: date) {
+            if championYesterday(date: date) != nil || done(.championDelayed) {
+                steps.append(QuestStep(kind: .task(.championDelayed, size: ChampionTest.size), done: done(.championDelayed)))
+            }
+            if championDue(profile, date: date) {
+                steps.append(QuestStep(kind: .task(.championTest, size: ChampionTest.size), done: done(.championTest)))
+            }
+            let course = courseDay(profile, date: date)
+            if let lesson = course.lesson {
+                steps.append(QuestStep(kind: .lesson(lesson.id), done: profile.lessonsRead.contains(lesson.id)))
+            }
+            for drill in course.drills {
+                let task = Self.task(for: drill.kind)
+                steps.append(QuestStep(kind: .task(task, size: drill.size), done: done(task)))
+            }
         }
 
+        // Re-recalls follow any sprint you played, baseline days included.
         if let sprint = yesterdaysSprint() {
             steps.append(QuestStep(kind: .task(.sprintRetention, size: sprint.level), done: done(.sprintRetention)))
+        }
+        if let review = listReviewFor(date: date) {
+            steps.append(QuestStep(kind: .task(.listReview, size: review.due.size), done: review.done, reviewOffset: review.due.offset))
         }
 
         if isGymDay(profile, date: date) {
@@ -139,17 +202,38 @@ enum Quest {
 
     // MARK: Contexts
 
-    static func context(for task: RealmTask, size: Int, profile: Profile, date: Date = Date()) -> GameContext {
+    static func context(for task: RealmTask, size requested: Int, profile: Profile, date: Date = Date()) -> GameContext {
         let stamp = Notifications.dayStamp(date)
         var seed = "\(salt(profile))-\(stamp)-\(task.rawValue)"
+        var size = task == .sequences ? profile.sequenceSpan : requested
+        var palaceID = [.wordSprint, .sprintRetention, .routeWalk, .listReview].contains(task) ? palace(forItems: size)?.id : nil
+        var reviewOffset = 0
+        var championForm = 0
         if task == .wordRecall { seed = "benchmark" } // fixed forms; the form index rotates
-        if task == .sprintRetention, let s = yesterdaysSprint() { seed = s.seed }
+        if task == .sprintRetention, let s = yesterdaysSprint() {
+            seed = s.seed
+            if let id = s.palaceID { palaceID = id }   // walk the palace the words were placed in
+        }
+        if task == .listReview, let review = listReviewFor(date: date) {
+            seed = review.due.seed
+            size = review.due.size
+            reviewOffset = review.due.offset
+            if let id = sprintLists(date: date).first(where: { $0.list.seed == review.due.seed })?.palaceID { palaceID = id }
+        }
+        if task == .championTest {
+            championForm = BenchmarkPlanner.championForm(forSession: profile.championCount, userSeed: salt(profile))
+            seed = "champion-\(championForm)"
+            size = ChampionTest.size
+        }
+        if task == .championDelayed {
+            let test = championYesterday(date: date) ?? sessions(on: date).first { $0.task == .championDelayed }
+            if let test { seed = test.seed; championForm = Int(test.seed.split(separator: "-").last ?? "") ?? 0 }
+            size = ChampionTest.size
+        }
         let level = task.domain == .associative ? DifficultyStore.level(for: task) : 2
-        let size = task == .sequences ? profile.sequenceSpan : size
-        let palace = [.wordSprint, .sprintRetention, .routeWalk].contains(task) ? palace(forItems: size) : nil
         return GameContext(task: task, seed: seed, size: size, level: level, courseDay: profile.courseDay,
-                           palaceID: palace?.id, benchmarkForm: BenchmarkPlanner.form(forSession: profile.benchmarkCount),
-                           isBenchmark: task.isBenchmark)
+                           palaceID: palaceID, benchmarkForm: BenchmarkPlanner.form(forSession: profile.benchmarkCount, userSeed: salt(profile)),
+                           championForm: championForm, reviewOffset: reviewOffset, isBenchmark: task.isBenchmark)
     }
 
     // MARK: Recording
@@ -160,7 +244,8 @@ enum Quest {
         pinPlan(profile)
         let session = TaskSession(task: ctx.task, correct: outcome.correct, total: outcome.total, meanRTms: outcome.meanRTms,
                                   score: outcome.score, level: outcome.level ?? ctx.size, seed: ctx.seed,
-                                  courseDay: profile.courseDay, isBenchmark: ctx.isBenchmark)
+                                  courseDay: profile.courseDay, isBenchmark: ctx.isBenchmark,
+                                  palaceID: ctx.palaceID, reviewOffset: ctx.reviewOffset)
         Store.context.insert(session)
 
         switch ctx.task {
@@ -178,6 +263,10 @@ enum Quest {
         default: break
         }
         if let id = ctx.palaceID, let palace = palaces().first(where: { $0.id == id }) { palace.lastUsed = Date() }
+        if ctx.task == .championTest, !Calendar.current.isDateInToday(profile.lastChampion ?? .distantPast) {
+            profile.championCount += 1
+            profile.lastChampion = Date()
+        }
         profile.shinies += 1
 
         if ctx.isBenchmark {
@@ -211,7 +300,7 @@ enum Quest {
 
     /// The course moves to the next day once today's lesson and drills are done — at most once a day.
     static func advanceCourseIfDone(_ profile: Profile) {
-        guard !Calendar.current.isDateInToday(profile.lastCourseAdvance ?? .distantPast) else { return }
+        guard !Calendar.current.isDateInToday(profile.lastCourseAdvance ?? .distantPast), !inBaseline(profile) else { return }
         let course = courseDay(profile)
         let today = sessions()
         let lessonDone = course.lesson.map { profile.lessonsRead.contains($0.id) } ?? true

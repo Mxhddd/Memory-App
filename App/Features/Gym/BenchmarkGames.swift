@@ -3,33 +3,42 @@ import MemoryCore
 
 /// Benchmark 1 — 30-word free recall (technique-free transfer test, alternate forms).
 /// 5 minutes to study, 30 seconds of counting backwards, then recall in any order.
+/// The same view runs the Champion test (72 words, 20 minutes) and its next-day recall.
 struct WordRecallBenchmark: View {
     @Environment(\.theme) private var theme
     let ctx: GameContext
     let onFinish: (GameOutcome) -> Void
 
     private enum Phase { case study, distract, recall }
-    @State private var phase: Phase = .study
+    @State private var phase: Phase
+
+    init(ctx: GameContext, onFinish: @escaping (GameOutcome) -> Void) {
+        self.ctx = ctx
+        self.onFinish = onFinish
+        _phase = State(initialValue: ctx.task == .championDelayed ? .recall : .study)
+    }
+
+    private var champion: Bool { ctx.task == .championTest || ctx.task == .championDelayed }
     @State private var recalled: [String] = []
     @State private var entry = ""
     @FocusState private var focused: Bool
 
-    private var words: [String] { WordBank.benchmarkForm(ctx.benchmarkForm) }
+    private var words: [String] { champion ? WordBank.championForm(ctx.championForm) : WordBank.benchmarkForm(ctx.benchmarkForm) }
 
     var body: some View {
         VStack(spacing: 16) {
             switch phase {
             case .study:
                 HStack {
-                    GameHeader(title: "Study these 30 words any way you like", progress: nil)
-                    EncodeTimer(seconds: 300) { phase = .distract }
+                    GameHeader(title: "Study these \(words.count) words any way you like", progress: nil)
+                    EncodeTimer(seconds: champion ? ChampionTest.encodeSeconds : 300) { phase = .distract }
                 }
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: champion ? 3 : 2), spacing: 10) {
                         ForEach(words, id: \.self) { w in
                             Text(w).font(theme.bodyEmphasis).foregroundStyle(theme.text)
                                 .frame(maxWidth: .infinity, minHeight: 40)
-                                .background(RoundedRectangle(cornerRadius: theme.cornerRadius).fill(theme.surface))
+                                .background(theme.shape(step: 4, radius: 14).fill(theme.surface))
                         }
                     }
                 }
@@ -40,7 +49,7 @@ struct WordRecallBenchmark: View {
                 EncodeTimer(seconds: 30) { phase = .recall }
                 Spacer()
             case .recall:
-                GameHeader(title: "Type every word you remember — any order", progress: nil)
+                GameHeader(title: ctx.task == .championDelayed ? "Yesterday's 72 words — type every one you remember" : "Type every word you remember — any order", progress: nil)
                 HStack {
                     TextField("Word", text: $entry)
                         .textInputAutocapitalization(.never)
@@ -49,7 +58,7 @@ struct WordRecallBenchmark: View {
                         .submitLabel(.next)
                         .onSubmit(add)
                         .padding(12)
-                        .background(RoundedRectangle(cornerRadius: theme.cornerRadius).fill(theme.surface))
+                        .background(theme.shape(step: 6, radius: 18).fill(theme.surface))
                         .foregroundStyle(theme.text)
                     Button("Add", action: add).buttonStyle(.borderedProminent).tint(theme.primary)
                 }

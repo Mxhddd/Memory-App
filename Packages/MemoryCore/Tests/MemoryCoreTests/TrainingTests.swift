@@ -124,33 +124,118 @@ final class LociAndCourseTests: XCTestCase {
     }
 
     func testWordBankSeparatesBenchmarkFromPractice() {
-        let benchmark = Set((0..<WordBank.benchmarkForms).flatMap { WordBank.benchmarkForm($0) })
-        XCTAssertEqual(benchmark.count, WordBank.benchmarkForms * WordBank.benchmarkFormSize)
+        let benchmark = Set(WordBank.benchmarkForms.flatMap { $0 })
+        let champion = Set(WordBank.championForms.flatMap { $0 })
+        XCTAssertEqual(benchmark.count, WordBank.formCount * WordBank.benchmarkFormSize)
+        XCTAssertEqual(champion.count, WordBank.championForms.count * ChampionTest.size)
+        XCTAssertTrue(benchmark.isDisjoint(with: champion))
         XCTAssertTrue(benchmark.isDisjoint(with: Set(WordBank.sprintPool)))
-        XCTAssertGreaterThanOrEqual(WordBank.sprintPool.count, 100)
+        XCTAssertTrue(champion.isDisjoint(with: Set(WordBank.sprintPool)))
+        XCTAssertGreaterThanOrEqual(WordBank.sprintPool.count, 300)
         XCTAssertEqual(Set(WordBank.all).count, WordBank.all.count)
+        XCTAssertTrue(WordBank.championForms.allSatisfy { $0.count == ChampionTest.size })
+    }
+
+    /// Alternate forms must be interchangeable: every form mean within 0.05 SD of every other
+    /// on concreteness, frequency and length.
+    func testFormsAreEquated() {
+        for forms in [WordBank.benchmarkForms, WordBank.championForms] {
+            let words = forms.flatMap { $0 }
+            let measures: [(String) -> Double] = [
+                { WordBank.norms[$0]!.concreteness }, { WordBank.norms[$0]!.zipf }, { Double($0.count) },
+            ]
+            for measure in measures {
+                let all = words.map(measure)
+                let mean = all.reduce(0, +) / Double(all.count)
+                let sd = (all.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(all.count - 1)).squareRoot()
+                let means = forms.map { f in f.map(measure).reduce(0, +) / Double(f.count) }
+                XCTAssertLessThan((means.max()! - means.min()!) / sd, 0.05)
+            }
+        }
     }
 }
 
 final class BenchmarkTests: XCTestCase {
-    func testSchedule() {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "Asia/Karachi")!
+    var cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Asia/Karachi")!
+        return c
+    }()
+
+    func testBaselineThenSchedule() {
         let start = cal.date(from: DateComponents(year: 2026, month: 10, day: 16))!
         let p = BenchmarkPlanner(start: start, calendar: cal)
         func day(_ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: start)! }
-        XCTAssertTrue(p.isDue(on: start, lastCompleted: nil))
-        XCTAssertFalse(p.isDue(on: day(5), lastCompleted: day(0)))
-        XCTAssertTrue(p.isDue(on: day(14), lastCompleted: day(0)))
-        XCTAssertTrue(p.isDue(on: day(16), lastCompleted: day(0)))   // missed day 14 → still due
-        XCTAssertFalse(p.isDue(on: day(20), lastCompleted: day(15)))
-        XCTAssertEqual(p.dueDays(through: 140), [0, 14, 28, 42, 72, 102, 132])
+        XCTAssertTrue(p.isDue(on: start, lastCompleted: nil, completed: 0))
+        XCTAssertFalse(p.isDue(on: day(0), lastCompleted: day(0), completed: 1))   // one baseline a day
+        XCTAssertTrue(p.isDue(on: day(1), lastCompleted: day(0), completed: 1))
+        XCTAssertTrue(p.isDue(on: day(6), lastCompleted: day(1), completed: 2))    // a missed day just waits
+        XCTAssertFalse(p.isDue(on: day(7), lastCompleted: day(6), completed: 3))
+        XCTAssertTrue(p.isDue(on: day(14), lastCompleted: day(6), completed: 3))
+        XCTAssertTrue(p.isDue(on: day(16), lastCompleted: day(6), completed: 3))   // missed day 14 → still due
+        XCTAssertFalse(p.isDue(on: day(20), lastCompleted: day(15), completed: 4))
+        XCTAssertEqual(p.dueDays(through: 140), [14, 28, 42, 72, 102, 132])
+        XCTAssertNil(p.nextDay(after: day(1), completed: 2))
+        XCTAssertEqual(p.nextDay(after: day(3), completed: 3), 14)
+        XCTAssertEqual(p.nextDay(after: day(50), completed: 6), 72)
+    }
+
+    func testFormOrderIsALatinSquare() {
+        // Within a person every form comes up once per cycle; across people the starting form varies.
+        let people = (0..<24).map { "user-\($0)" }
+        for person in people {
+            XCTAssertEqual(Set((0..<6).map { BenchmarkPlanner.form(forSession: $0, userSeed: person) }).count, 6)
+            XCTAssertEqual(Set((0..<3).map { BenchmarkPlanner.championForm(forSession: $0, userSeed: person) }).count, 3)
+        }
+        XCTAssertGreaterThan(Set(people.map { BenchmarkPlanner.form(forSession: 0, userSeed: $0) }).count, 3)
     }
 
     func testReliableImprovement() {
         // Dresler-like jump (26 → 62 of 72 ≈ 11 → 26 of 30) is clearly reliable; +2 words is not.
         XCTAssertTrue(Improvement.isReliable(baseline: 11, latest: 26, norms: Improvement.wordRecall))
         XCTAssertFalse(Improvement.isReliable(baseline: 11, latest: 13, norms: Improvement.wordRecall))
+    }
+
+    func testPersonalNorms() {
+        XCTAssertNil(Improvement.personal(baselines: [10, 11], prior: Improvement.wordRecall))
+        // A steady person (10, 11, 10) gets a tighter band than the textbook; a noisy one (6, 14, 10) a wider one.
+        let steady = Improvement.personal(baselines: [10, 11, 10], prior: Improvement.wordRecall)!
+        let noisy = Improvement.personal(baselines: [6, 14, 10], prior: Improvement.wordRecall)!
+        let priorSEM = ReliableChange.sem(sd: 4, reliability: 0.8)
+        XCTAssertEqual(steady.baseline, 31.0 / 3, accuracy: 1e-9)
+        XCTAssertLessThan(steady.sem, priorSEM)
+        XCTAssertGreaterThan(noisy.sem, priorSEM)
+        XCTAssertLessThan(steady.threshold, noisy.threshold)
+        XCTAssertTrue(Improvement.isReliable(latest: 16, personal: steady))
+        XCTAssertFalse(Improvement.isReliable(latest: 16, personal: noisy))
+        // Practice gain never goes negative, even when the baseline drifted down.
+        XCTAssertGreaterThanOrEqual(Improvement.personal(baselines: [14, 12, 10], prior: Improvement.wordRecall)!.expectedGain, 0)
+    }
+
+    func testChampionSchedule() {
+        XCTAssertTrue(ChampionTest.isDue(courseDay: 1, taken: 0, daysSinceLast: nil))
+        XCTAssertFalse(ChampionTest.isDue(courseDay: 20, taken: 1, daysSinceLast: 19))
+        XCTAssertTrue(ChampionTest.isDue(courseDay: 42, taken: 1, daysSinceLast: 41))
+        XCTAssertFalse(ChampionTest.isDue(courseDay: 42, taken: 2, daysSinceLast: 10))
+        XCTAssertTrue(ChampionTest.isDue(courseDay: 42, taken: 2, daysSinceLast: 30))
+        XCTAssertTrue(ChampionTest.delayedDue(daysSinceTest: 1))
+        XCTAssertFalse(ChampionTest.delayedDue(daysSinceTest: 2))
+    }
+
+    func testListReviewPicksTheMostOverdueCheck() {
+        let lists = [ListReview.List(seed: "a", size: 10, day: 0), ListReview.List(seed: "b", size: 12, day: 2)]
+        XCTAssertNil(ListReview.due(lists: lists, done: [], today: 2))                           // day 1 is Dawn Recall's
+        XCTAssertEqual(ListReview.due(lists: lists, done: [], today: 3), .init(seed: "a", size: 10, offset: 3))
+        XCTAssertEqual(ListReview.due(lists: lists, done: [], today: 5), .init(seed: "a", size: 10, offset: 3))
+        XCTAssertEqual(ListReview.due(lists: lists, done: ["a#3"], today: 5), .init(seed: "b", size: 12, offset: 3))
+        XCTAssertEqual(ListReview.due(lists: lists, done: ["a#3", "b#3"], today: 7), .init(seed: "a", size: 10, offset: 7))
+        XCTAssertNil(ListReview.due(lists: lists, done: ["a#3", "b#3"], today: 6))
+        XCTAssertEqual(ListReview.due(lists: lists, done: [], today: 21), .init(seed: "b", size: 12, offset: 7))  // 12 days late
+        XCTAssertEqual(ListReview.due(lists: lists, done: ["b#7"], today: 21), .init(seed: "a", size: 10, offset: 21))
+        XCTAssertNil(ListReview.due(lists: lists, done: [], today: 40))
+        let curve = ListReview.curve([(0, 0.9), (1, 0.8), (1, 0.6), (7, 0.5)])
+        XCTAssertEqual(curve.map(\.offset), [0, 1, 7])
+        XCTAssertEqual(curve[1].mean, 0.7, accuracy: 1e-9)
     }
 }
 

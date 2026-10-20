@@ -26,15 +26,20 @@ public enum RealmTask: String, Codable, CaseIterable, Sendable, Identifiable {
     // Benchmarks (technique-free transfer measures)
     case wordRecall       // 30-word free recall
     case digitSpan
+    // Champion test (72 words, technique allowed) and its 24-hour delayed recall
+    case championTest
+    case championDelayed
+    // Re-recall of a sprint list 3, 7 or 21 days later
+    case listReview
 
     public var id: String { rawValue }
 
     public var domain: MemoryDomain {
         switch self {
-        case .routeWalk, .wordSprint, .numberSprint: return .mnemonics
+        case .routeWalk, .wordSprint, .numberSprint, .championTest: return .mnemonics
         case .dualNBack, .complexSpan, .sequences, .digitSpan: return .workingMemory
         case .faceName, .ancientRunes, .stash: return .associative
-        case .sprintRetention, .wordRecall: return .retention
+        case .sprintRetention, .wordRecall, .championDelayed, .listReview: return .retention
         }
     }
 

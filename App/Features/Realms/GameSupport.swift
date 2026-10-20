@@ -24,6 +24,8 @@ struct GameContext {
     var courseDay: Int
     var palaceID: UUID?
     var benchmarkForm: Int = 0
+    var championForm: Int = 0
+    var reviewOffset: Int = 0
     var isBenchmark: Bool = false
 }
 

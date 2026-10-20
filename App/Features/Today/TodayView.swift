@@ -227,7 +227,7 @@ struct TodayView: View {
         case .lesson(let id): return "Lesson · \(Course.lesson(id)?.title ?? "")"
         case .task(let t, let size):
             switch t {
-            case .wordSprint, .sprintRetention: return "\(theme.copy.realmName(t)) · \(size) words"
+            case .wordSprint, .sprintRetention, .listReview: return "\(theme.copy.realmName(t)) · \(size) words"
             case .numberSprint: return "\(theme.copy.realmName(t)) · \(size) digits"
             case .dualNBack: return "\(theme.copy.realmName(t)) · \(size)-back"
             default: return theme.copy.realmName(t)
@@ -241,7 +241,16 @@ struct TodayView: View {
             let due = Quest.dueCards().count
             return due > 0 ? "\(due) cards ready — recall before you reveal" : "Cards reviewed"
         case .lesson: return "A few minutes of technique"
-        case .task(let t, _): return theme.copy.realmBlurb(t)
+        case .task(let t, let size):
+            if step.isBenchmark && Quest.inBaseline(profile) {
+                return "Baseline \(min(3, profile.benchmarkCount + (Quest.benchmarkDoneToday(profile) ? 0 : 1))) of 3 · " + (t == .wordRecall ? "30 words" : "digits in order")
+            }
+            switch t {
+            case .listReview: return "\(size) words from \(step.reviewOffset) days ago"
+            case .championTest: return "72 words · about 35 min"
+            case .championDelayed: return "Yesterday's 72 words"
+            default: return theme.copy.realmBlurb(t)
+            }
         }
     }
 
@@ -261,6 +270,9 @@ struct TodayView: View {
             case .ancientRunes: return "character.book.closed.fill"
             case .stash: return "shippingbox.fill"
             case .wordRecall, .digitSpan: return "flag.checkered"
+            case .championTest: return "trophy.fill"
+            case .championDelayed: return "sunrise.fill"
+            case .listReview: return "arrow.counterclockwise"
             }
         }
     }

@@ -19,7 +19,7 @@ struct GameHost: View {
         return palaces.first
     }
 
-    private var needsPalace: Bool { [.routeWalk, .wordSprint, .sprintRetention].contains(ctx.task) && palaces.isEmpty }
+    private var needsPalace: Bool { [.routeWalk, .wordSprint, .sprintRetention, .listReview].contains(ctx.task) && palaces.isEmpty }
 
     var body: some View {
         ZStack {
@@ -59,6 +59,9 @@ struct GameHost: View {
         case .stash: return "Things get hidden in the grid. Remember where each one is, then point to its spot."
         case .wordRecall: return "Benchmark: study 30 words for up to 5 minutes using any method you like — palace included. After a short pause, type all you remember. This shows how your memory is changing."
         case .digitSpan: return "Benchmark: digits appear one at a time. Type them back in order. The list grows until two misses in a row."
+        case .championTest: return "The Champion test: 72 words and 20 minutes to memorise them, any method you like. After a short pause, type every word you remember, in any order. Tomorrow you will recall them once more without looking, to see what lasts."
+        case .championDelayed: return "Yesterday you memorised 72 words. Without looking, type every one you still remember, in any order. This is the 24-hour score memory champions are judged on."
+        case .listReview: return "A few days ago you placed \(ctx.size) words in your palace. Walk it again and see what is still there — each revisit makes the next one easier."
         }
     }
 
@@ -100,7 +103,7 @@ struct GameHost: View {
             if let palace { RouteWalkGame(palace: palace, onFinish: finish) }
         case .wordSprint:
             WordSprintGame(ctx: ctx, palace: palace, retention: false, onFinish: finish)
-        case .sprintRetention:
+        case .sprintRetention, .listReview:
             WordSprintGame(ctx: ctx, palace: palace, retention: true, onFinish: finish)
         case .numberSprint:
             NumberSprintGame(ctx: ctx, onFinish: finish)
@@ -119,7 +122,7 @@ struct GameHost: View {
                      seed: ctx.seed, difficulty: DifficultyStore.difficulty(ofLevel: ctx.level), onFinish: finish)
         case .stash:
             StashGame(ctx: ctx, onFinish: finish)
-        case .wordRecall:
+        case .wordRecall, .championTest, .championDelayed:
             WordRecallBenchmark(ctx: ctx, onFinish: finish)
         case .digitSpan:
             DigitSpanGame(ctx: ctx, onFinish: finish)
@@ -159,6 +162,9 @@ struct GameHost: View {
             return "Caught \(o.correct) of \(o.total) matches. " + (o.nextLevel.map { "Next time: \($0)-back." } ?? "")
         case .complexSpan: return "Recalled \(o.correct) of \(o.total) letters in perfect sets."
         case .wordRecall: return "\(o.correct) of 30 words. Compare with your next benchmark in Progress."
+        case .championTest: return "\(o.correct) of 72 words. Tomorrow: recall them again without looking."
+        case .championDelayed: return "\(o.correct) of 72 words after a day."
+        case .listReview: return "\(o.correct) of \(o.total) still there after \(ctx.reviewOffset) days."
         case .digitSpan: return "Digit span: \(o.correct)."
         case .routeWalk: return o.correct == o.total ? "Flawless walk." : "\(o.correct) of \(o.total) stops first time."
         default: return "\(o.correct) of \(o.total) remembered."

@@ -1,5 +1,8 @@
 Copyright 2021 The Pixelify Sans Project Authors (https://github.com/eifetx/Pixelify-Sans)
 
+Modified version ("Pixelify Sans MG"): the glyphs for the digits 2 and 5 were redrawn for legibility
+(distribution/tools/patch_pixel_digits.py). It is renamed and distributed under the same license.
+
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 https://scripts.sil.org/OFL

@@ -170,13 +170,16 @@ public enum Course {
     }
 }
 
-/// Technique-free benchmarks: day 0, 14, 28, 42, then monthly. They measure whether
-/// training transfers to plain remembering — the honest test of "my memory improved".
+/// Technique-free benchmarks. The first three sessions (one per day) form a personal baseline,
+/// so later results are compared with *your* normal day-to-day spread rather than a textbook
+/// one; then days 14, 28, 42 and monthly. Benchmarks measure whether training transfers to
+/// plain remembering — the honest test of "my memory improved".
 public struct BenchmarkPlanner: Sendable {
     public var start: Date
     public var calendar: Calendar
 
-    public static let earlyDays = [0, 14, 28, 42]
+    public static let baselineSessions = 3
+    public static let scheduledDays = [14, 28, 42]
     public static let laterEvery = 30
 
     public init(start: Date, calendar: Calendar = .current) {
@@ -184,8 +187,9 @@ public struct BenchmarkPlanner: Sendable {
         self.calendar = calendar
     }
 
+    /// Scheduled (post-baseline) benchmark days up to `day`.
     public func dueDays(through day: Int) -> [Int] {
-        var days = Self.earlyDays.filter { $0 <= day }
+        var days = Self.scheduledDays.filter { $0 <= day }
         var d = 42 + Self.laterEvery
         while d <= day { days.append(d); d += Self.laterEvery }
         return days
@@ -195,16 +199,113 @@ public struct BenchmarkPlanner: Sendable {
         calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: date)).day ?? 0
     }
 
-    /// Due if a scheduled benchmark day has passed since the last completed one.
-    public func isDue(on date: Date, lastCompleted: Date?) -> Bool {
-        let today = dayIndex(date)
-        guard let latest = dueDays(through: today).last else { return false }
+    /// Baseline sessions are due on any day without one; after that, when a scheduled day has
+    /// passed since the last completed session.
+    public func isDue(on date: Date, lastCompleted: Date?, completed: Int) -> Bool {
         guard let last = lastCompleted else { return true }
+        if completed < Self.baselineSessions { return !calendar.isDate(last, inSameDayAs: date) }
+        guard let latest = dueDays(through: dayIndex(date)).last else { return false }
         return dayIndex(last) < latest
     }
 
-    /// Which alternate form to use for the n-th benchmark session.
-    public static func form(forSession n: Int) -> Int { n % WordBank.benchmarkForms }
+    /// Day index of the next scheduled benchmark after `date` (nil while the baseline is running).
+    public func nextDay(after date: Date, completed: Int) -> Int? {
+        guard completed >= Self.baselineSessions else { return nil }
+        let today = dayIndex(date)
+        if let d = Self.scheduledDays.first(where: { $0 > today }) { return d }
+        var d = 42 + Self.laterEvery
+        while d <= today { d += Self.laterEvery }
+        return d
+    }
+
+    /// Alternate-form order: a cyclic Latin square, rotated per person, so no form is always
+    /// first and form effects average out across sessions and people.
+    public static func form(forSession n: Int, userSeed: String) -> Int {
+        rotate(n, count: WordBank.formCount, userSeed: userSeed)
+    }
+
+    public static func championForm(forSession n: Int, userSeed: String) -> Int {
+        rotate(n, count: WordBank.championForms.count, userSeed: userSeed)
+    }
+
+    static func rotate(_ n: Int, count: Int, userSeed: String) -> Int {
+        var rng = SeededRandom("form-order-\(userSeed)")
+        let offset = Int.random(in: 0..<count, using: &rng)
+        return ((n + offset) % count + count) % count
+    }
+}
+
+/// The Champion test (Dresler et al., 2017): 72 words, 20 minutes to memorise with any method,
+/// free recall straight away and again 24 hours later without re-study. Unlike the 30-word test
+/// it has no ceiling for palace users, so it shows what the method itself is doing.
+public enum ChampionTest {
+    public static let size = 72
+    public static let encodeSeconds = 20 * 60
+    public static let recallSeconds = 15 * 60
+    public static let finalCourseDay = 42
+
+    /// Due on the first course day (a pre-technique reference), at the end of the course, then monthly.
+    public static func isDue(courseDay: Int, taken: Int, daysSinceLast: Int?) -> Bool {
+        switch taken {
+        case 0: return courseDay >= 1
+        case 1: return courseDay >= finalCourseDay
+        default: return (daysSinceLast ?? 0) >= 30
+        }
+    }
+
+    /// The delayed recall only counts as a 24-hour measure on the next calendar day.
+    public static func delayedDue(daysSinceTest: Int) -> Bool { daysSinceTest == 1 }
+}
+
+/// Spaced re-recall of sprint lists: what is still there after 1, 3, 7 and 21 days.
+/// Day 1 is Dawn Recall; the later checks appear at most once a day (the most overdue first)
+/// so sessions stay short. Together they draw a personal forgetting curve.
+public enum ListReview {
+    public static let offsets = [1, 3, 7, 21]
+
+    public struct List: Equatable, Sendable {
+        public let seed: String
+        public let size: Int
+        public let day: Int        // day index the list was learned
+        public init(seed: String, size: Int, day: Int) { self.seed = seed; self.size = size; self.day = day }
+    }
+
+    public struct Due: Equatable, Sendable {
+        public let seed: String
+        public let size: Int
+        public let offset: Int
+        public init(seed: String, size: Int, offset: Int) { self.seed = seed; self.size = size; self.offset = offset }
+    }
+
+    public static func key(seed: String, offset: Int) -> String { "\(seed)#\(offset)" }
+
+    /// Days after learning during which a check still counts for `offset` (until the next one is due).
+    public static func window(for offset: Int) -> Range<Int> {
+        guard let i = offsets.firstIndex(of: offset) else { return offset..<offset }
+        return offset..<(i + 1 < offsets.count ? offsets[i + 1] : offset + 14)
+    }
+
+    /// Today's later re-recall (3, 7 or 21 days), if any: the one furthest past its due day.
+    public static func due(lists: [List], done: Set<String>, today: Int) -> Due? {
+        var best: (due: Due, late: Int, day: Int)?
+        for list in lists {
+            for offset in offsets.dropFirst() where !done.contains(key(seed: list.seed, offset: offset)) {
+                let age = today - list.day
+                guard window(for: offset).contains(age) else { continue }
+                let late = age - offset
+                if let b = best, (late, -list.day) <= (b.late, -b.day) { continue }
+                best = (Due(seed: list.seed, size: list.size, offset: offset), late, list.day)
+            }
+        }
+        return best?.due
+    }
+
+    /// Mean proportion recalled at each delay (0 = straight after learning).
+    public static func curve(_ points: [(offset: Int, score: Double)]) -> [(offset: Int, mean: Double, count: Int)] {
+        Dictionary(grouping: points, by: \.offset)
+            .map { (offset: $0.key, mean: $0.value.map(\.score).reduce(0, +) / Double($0.value.count), count: $0.value.count) }
+            .sorted { $0.offset < $1.offset }
+    }
 }
 
 /// "Is this a real improvement or just noise?" — reliable-change thresholds per benchmark.
@@ -220,6 +321,38 @@ public enum Improvement {
     public static let wordRecall = Norms(sd: 4.0, reliability: 0.80, expectedPracticeGain: 1.0)   // words of 30
     public static let digitSpan = Norms(sd: 1.1, reliability: 0.75, expectedPracticeGain: 0.2)    // digits
     public static let nBack = Norms(sd: 0.8, reliability: 0.80, expectedPracticeGain: 0.3)        // n level
+
+    /// Your own measurement noise and practice effect, from the baseline sessions.
+    public struct Personal: Equatable, Sendable {
+        public var baseline: Double      // mean of the baseline sessions
+        public var sem: Double           // per-session measurement error, shrunk toward the literature
+        public var expectedGain: Double  // retest gain expected without any real change
+        public var sessions: Int
+        /// Change needed above the baseline before "reliably improved" (90% one-sided).
+        public var threshold: Double { 1.645 * sem * (1 + 1 / Double(sessions)).squareRoot() + expectedGain }
+    }
+
+    /// Prior weight, in degrees of freedom, given to the literature SEM.
+    public static let priorDF = 4.0
+
+    /// Personal norms once three baseline sessions exist: the within-person SD is pooled with the
+    /// literature SEM (weighted by degrees of freedom) and the practice gain between baseline
+    /// sessions is shrunk toward the literature retest gain (never below zero, to stay conservative).
+    public static func personal(baselines: [Double], prior: Norms) -> Personal? {
+        let n = baselines.count
+        guard n >= BenchmarkPlanner.baselineSessions else { return nil }
+        let mean = baselines.reduce(0, +) / Double(n)
+        let variance = baselines.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(n - 1)
+        let priorSEM = ReliableChange.sem(sd: prior.sd, reliability: prior.reliability)
+        let pooled = ((priorDF * priorSEM * priorSEM + Double(n - 1) * variance) / (priorDF + Double(n - 1))).squareRoot()
+        let steps = zip(baselines, baselines.dropFirst()).map { $1 - $0 }
+        let gain = max(0, ReliableChange.shrunkExpectedGain(personal: steps, prior: prior.expectedPracticeGain))
+        return Personal(baseline: mean, sem: pooled, expectedGain: gain, sessions: n)
+    }
+
+    public static func isReliable(latest: Double, personal p: Personal) -> Bool {
+        latest - p.baseline > p.threshold
+    }
 
     /// True when the gain beats noise *and* plain test practice (practice-adjusted RCI > 1.645).
     public static func isReliable(baseline: Double, latest: Double, norms: Norms) -> Bool {

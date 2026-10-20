@@ -17,6 +17,8 @@ struct ProgressScreen: View {
                 bestsCard
                 benchmarkCard(report.wordRecall)
                 benchmarkCard(report.digitSpan)
+                if !report.champion.isEmpty { championCard }
+                if report.whatSticks.count >= 2 { whatSticksCard }
                 if report.nBackLevels.count >= 2 { levelChart("n-back level", report.nBackLevels) }
                 if report.sprintWords.count >= 2 { levelChart("Words recalled in a sprint", report.sprintWords) }
                 NavigationLink { CircleView(profile: profile) } label: {
@@ -113,21 +115,76 @@ struct ProgressScreen: View {
                         .font(.caption.weight(.bold)).foregroundStyle(theme.success)
                 }
             }
-            if let b = trend.baseline, let l = trend.latest {
-                Text("Start \(Int(b)) → now \(Int(l)) \(trend.unit)").font(theme.display(24)).foregroundStyle(theme.text)
-            } else {
-                Text("Your first benchmark sets the starting line.").font(theme.caption).foregroundStyle(theme.secondaryText)
+            if let p = trend.personal {
+                Text("Baseline " + p.baseline.formatted(.number.precision(.fractionLength(0...1)))
+                     + (trend.points.count > BenchmarkPlanner.baselineSessions ? " → now \(Int(trend.latest ?? 0))" : "") + " \(trend.unit)")
+                    .font(theme.display(24)).foregroundStyle(theme.text)
+            } else if let l = trend.latest {
+                Text("\(Int(l)) \(trend.unit)").font(theme.display(24)).foregroundStyle(theme.text)
             }
             if trend.points.count >= 2 {
-                Chart(trend.points) { p in
-                    LineMark(x: .value("Date", p.date), y: .value(trend.title, p.value)).foregroundStyle(theme.primary)
-                    PointMark(x: .value("Date", p.date), y: .value(trend.title, p.value)).foregroundStyle(theme.primary)
+                Chart {
+                    if let band = trend.band {
+                        RectangleMark(xStart: .value("Start", trend.points.first!.date), xEnd: .value("End", trend.points.last!.date),
+                                      yStart: .value("Low", band.lowerBound), yEnd: .value("High", band.upperBound))
+                            .foregroundStyle(theme.accent.opacity(0.18))
+                    }
+                    ForEach(trend.points) { p in
+                        LineMark(x: .value("Date", p.date), y: .value(trend.title, p.value)).foregroundStyle(theme.primary)
+                        PointMark(x: .value("Date", p.date), y: .value(trend.title, p.value)).foregroundStyle(theme.primary)
+                    }
                 }
                 .frame(height: 140)
+                .accessibilityLabel("\(trend.title): " + trend.points.map { "\(Int($0.value))" }.joined(separator: ", "))
             }
-            Text(trend.reliablyImproved
-                 ? "This gain is bigger than test-to-test noise and normal practice effects."
-                 : "“Reliably improved” appears only when a gain beats measurement noise — no false praise.")
+            Text(note(for: trend)).font(.caption).foregroundStyle(theme.secondaryText)
+        }
+        .themedCard()
+    }
+
+    private func note(for trend: BenchmarkTrend) -> String {
+        if trend.points.isEmpty { return "Three baseline days come first, one a day, so the app learns your normal day-to-day spread." }
+        if trend.baselineLeft > 0 { return "Baseline \(BenchmarkPlanner.baselineSessions - trend.baselineLeft) of 3 done. After the third, a shaded band shows your normal range." }
+        if trend.reliablyImproved { return "This gain is bigger than your own day-to-day noise and normal practice effects." }
+        let needed = Int((trend.personal?.threshold ?? 0).rounded(.up))
+        return "The shaded band is your normal range. “Reliably improved” appears above it — about \(needed) \(needed == 1 ? trend.unitSingular : trend.unitPlural) over your baseline."
+    }
+
+    private var championCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Champion test · 72 words").font(theme.bodyEmphasis).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
+            ForEach(report.champion) { c in
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(c.date, format: .dateTime.day().month(.abbreviated)).font(theme.caption).foregroundStyle(theme.secondaryText)
+                        .frame(width: 70, alignment: .leading)
+                    Text("\(c.immediate)").font(theme.display(26)).foregroundStyle(theme.ornament)
+                    Text("now · next day \(c.nextDay.map(String.init) ?? "—")").font(theme.caption).foregroundStyle(theme.secondaryText)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            Text("In Dresler et al. (2017), beginners who trained the palace method for six weeks went from about 26 to 62 of these 72 words. The next-day score shows how much of it lasts.")
+                .font(.caption).foregroundStyle(theme.secondaryText)
+        }
+        .themedCard()
+    }
+
+    private var whatSticksCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("What sticks").font(theme.bodyEmphasis).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
+                Spacer()
+                Text("% of a sprint list recalled").font(.caption).foregroundStyle(theme.secondaryText)
+            }
+            Chart(report.whatSticks) { p in
+                BarMark(x: .value("Delay", p.offset == 0 ? "same day" : "\(p.offset) day\(p.offset == 1 ? "" : "s")"),
+                        y: .value("Recalled", p.mean * 100))
+                    .foregroundStyle(p.offset == 0 ? theme.primary : theme.accent)
+                    .annotation(position: .top) { Text("\(Int((p.mean * 100).rounded()))%").font(.caption.weight(.bold)).foregroundStyle(theme.text) }
+            }
+            .chartYScale(domain: 0...110)
+            .chartYAxis(.hidden)
+            .frame(height: 150)
+            Text("Each sprint list comes back after 1, 3, 7 and 21 days. The drop between bars is your forgetting curve — revisiting is what flattens it.")
                 .font(.caption).foregroundStyle(theme.secondaryText)
         }
         .themedCard()

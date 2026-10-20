@@ -174,7 +174,7 @@ struct DebugView: View {
             record.questDone = true
             context.insert(record)
         }
-        for (i, value) in [(0, 11), (9, 17)] {
+        for (i, value) in [(0, 10), (1, 11), (2, 10), (9, 17)] {   // three baseline days, then a later benchmark
             let date = cal.date(byAdding: .day, value: i - 10, to: Date())!
             context.insert(TaskSession(task: .wordRecall, correct: value, total: 30, meanRTms: 0, score: Double(value) / 30,
                                        level: value, seed: "benchmark", courseDay: 1, isBenchmark: true, date: date))
