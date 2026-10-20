@@ -15,7 +15,7 @@ Open it on MaoMao's Windows laptop. It shows a QR code that takes each iPhone to
 
 ## Part 1 — You, once (2 minutes)
 
-1. **Publish the version.** Push a tag such as `v0.5.0` (or ask Claude to). The **Build iOS app** workflow takes about 10 minutes. It builds the app on a GitHub Mac and creates a release in this repo with:
+1. **Publish the version.** On GitHub: **Actions → Build iOS app → Run workflow**, tick **Publish a release**, then **Run workflow**. The version comes from `MARKETING_VERSION` in `project.yml`. (Pushing a tag such as `v0.5.1` does the same.) The run takes about 5 minutes. It builds the app on a GitHub Mac and creates a release in this repo with:
    - `MemoryGarden.ipa`: the app.
    - `sidestore-source.json`: the SideStore source. Its permanent link is
      `https://github.com/Mxhddd/Memory-App/releases/latest/download/sidestore-source.json`
@@ -24,7 +24,7 @@ Open it on MaoMao's Windows laptop. It shows a QR code that takes each iPhone to
 
    No tokens or secrets are needed. The workflow then checks the links itself.
 2. **Turn on the install page** (one click, the first time only). The **Install site** workflow puts the guide on the `gh-pages` branch. In the repo, go to **Settings → Pages → Build and deployment → Deploy from a branch → `gh-pages` / (root) → Save**. A minute later, https://mxhddd.github.io/Memory-App/ is live.
-3. **Later updates:** push the next tag (`v0.5.1`, …). The phones see an **Update** button in SideStore.
+3. **Later updates:** bump `MARKETING_VERSION` and run the workflow again (or ask Claude). The phones see an **Update** button in SideStore.
 
 > Every push also builds the app as a compile check. The file is under **Actions → the run → Artifacts**.
 

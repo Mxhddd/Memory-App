@@ -2,7 +2,8 @@ name: Build iOS app
 
 # Builds an unsigned MemoryGarden.ipa on a GitHub-hosted Mac (no Mac needed at home).
 #  * push to an app path  → compile check + IPA artifact
-#  * tag v1.2.3           → also publishes a GitHub release in this repo with the IPA, the
+#  * tag v1.2.3, or Run workflow with "Publish a release" ticked
+#                         → also publishes a GitHub release in this repo with the IPA, the
 #                           SideStore source (stable link: releases/latest/download/sidestore-source.json),
 #                           the icon and the Windows setup helper. Uses the built-in token: no secrets.
 on:
@@ -11,6 +12,11 @@ on:
     tags: ["v*"]
     paths: ["App/**", "Widgets/**", "Shared/**", "Packages/MemoryCore/**", "project.yml", "distribution/**", ".github/workflows/build-ipa.yml"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a release (version from project.yml MARKETING_VERSION)"
+        type: boolean
+        default: false
 
 concurrency:
   group: build-${{ github.ref }}
@@ -41,8 +47,14 @@ jobs:
       - name: Version
         id: v
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else V="0.0.$GITHUB_RUN_NUMBER"; fi
+          PUBLISH=false
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; PUBLISH=true
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.release }}" == "true" ]]; then
+            V=$(awk -F'"' '/MARKETING_VERSION:/ {print $2; exit}' project.yml); PUBLISH=true
+          else V="0.0.$GITHUB_RUN_NUMBER"; fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "Version $V (publish: $PUBLISH)"
 
       - name: Build IPA
         env:
@@ -68,7 +80,7 @@ jobs:
           retention-days: 14
 
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.v.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.v.outputs.version }}
@@ -90,12 +102,13 @@ jobs:
           if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "v$VERSION" $ASSETS --repo "$GITHUB_REPOSITORY" --clobber   # re-run: replace the files
           else
-            gh release create "v$VERSION" $ASSETS --repo "$GITHUB_REPOSITORY" --title "Memory Garden $VERSION" \
-              --notes-file distribution/release-notes.md --latest
+            # Creates the tag on this commit too when the run was started with "Publish a release".
+            gh release create "v$VERSION" $ASSETS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Memory Garden $VERSION" --notes-file distribution/release-notes.md --latest
           fi
 
       - name: Check the download links
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.v.outputs.publish == 'true'
         env:
           VERSION: ${{ steps.v.outputs.version }}
         run: |
