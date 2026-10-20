@@ -8,15 +8,29 @@ struct TodayView: View {
     @EnvironmentObject private var router: Router
     @Query(filter: #Predicate<Intention> { $0.active == true }, sort: \Intention.time) private var intentions: [Intention]
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var steps: [QuestStep] = []
+    @State private var stats = DayStats()
+    @State private var shownDay = Calendar.current.startOfDay(for: Date())
     @State private var playing: GameContext?
     @State private var reviewing = false
     @State private var lesson: Lesson?
     @State private var celebrate = false
+    /// Whether the day was already complete when the current step started (to celebrate once, after the sheet closes).
+    @State private var wasDoneBefore = false
+
+    /// Numbers that need database reads, computed once per refresh instead of on every render.
+    struct DayStats {
+        var active3 = 0
+        var active28 = 0
+        var weekDays = 0
+        var streak = 0
+        var planDay = 1
+    }
 
     private var mood: MascotMood {
         if steps.allSatisfy(\.done) && !steps.isEmpty { return .happy }
-        return Quest.activeDays(last: 3) == 0 && Quest.activeDays(last: 28) > 0 ? .sleepy : .idle
+        return stats.active3 == 0 && stats.active28 > 0 ? .sleepy : .idle
     }
 
     var body: some View {
@@ -48,23 +62,23 @@ struct TodayView: View {
             }
         }
         .onAppear(perform: refresh)
+        // A new day while the app sat open or in the background: rebuild the plan.
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refresh() } }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in refresh() }
         .onChange(of: router.pending) { _, _ in handleRoute() }
         .task { handleRoute() }
-        .fullScreenCover(item: Binding(get: { playing.map(GameItem.init) }, set: { if $0 == nil { playing = nil } })) { item in
-            GameHost(ctx: item.ctx, profile: profile) { completed in
-                playing = nil
-                refresh()
-                if completed { celebrate = true }
-            }
-            .environment(\.theme, theme)
+        .fullScreenCover(item: Binding(get: { playing.map(GameItem.init) }, set: { if $0 == nil { playing = nil } }),
+                         onDismiss: afterStep) { item in
+            GameHost(ctx: item.ctx, profile: profile) { _ in playing = nil }
+                .environment(\.theme, theme)
         }
-        .fullScreenCover(isPresented: $reviewing, onDismiss: refresh) {
+        .fullScreenCover(isPresented: $reviewing, onDismiss: afterStep) {
             NavigationStack { ReviewSessionView(profile: profile, countsForSession: true) }
                 .environment(\.theme, theme)
         }
-        .sheet(item: $lesson, onDismiss: refresh) { l in
+        .sheet(item: $lesson, onDismiss: afterStep) { l in
             LessonView(lesson: l) {
-                if Quest.markLessonRead(l.id, profile: profile) { celebrate = true }
+                _ = Quest.markLessonRead(l.id, profile: profile)
             }
             .environment(\.theme, theme)
         }
@@ -75,19 +89,19 @@ struct TodayView: View {
 
     // MARK: Sections
 
-    private var stage: Int { DenGrowth.stage(activeDaysLast28: Quest.activeDays(last: 28)) }
+    private var stage: Int { DenGrowth.stage(activeDaysLast28: stats.active28) }
 
     /// The room, with today's course day in the corner.
     private var hero: some View {
-        let course = Quest.courseDay(profile)
+        let day = stats.planDay
         return RoomSceneView(stage: stage, mood: mood)
             .overlay(alignment: .topTrailing) {
-                Text("Day \(course.day) of \(Course.length)")
+                Text("Day \(day) of \(Course.length)")
                     .font(theme.display(24))
                     .foregroundStyle(theme.ornament)
                     .padding(.top, 104)
                     .padding(.trailing, 18)
-                    .accessibilityLabel("Course day \(course.day) of \(Course.length)")
+                    .accessibilityLabel("Course day \(day) of \(Course.length)")
             }
     }
 
@@ -168,7 +182,7 @@ struct TodayView: View {
                 }
                 Spacer()
                 Button("Done") {
-                    Notifications.markIntentionDone(intention.id)
+                    Notifications.markIntentionDone(intention.id, on: date)
                     Haptic.success()
                 }
                 .buttonStyle(SecondaryButtonStyle())
@@ -180,8 +194,8 @@ struct TodayView: View {
     }
 
     private var weekRow: some View {
-        let days = Quest.questDays()
-        let streak = Quest.weeklyStreak()
+        let days = stats.weekDays
+        let streak = stats.streak
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { i in
@@ -201,18 +215,31 @@ struct TodayView: View {
     // MARK: Actions
 
     private func refresh() {
+        guard Store.isLive(profile) else { return }
+        let today = Calendar.current.startOfDay(for: Date())
+        if today != shownDay { shownDay = today; AppEvents.appBecameActive() }
         steps = Quest.steps(for: profile)
+        stats = DayStats(active3: Quest.activeDays(last: 3), active28: Quest.activeDays(last: 28),
+                         weekDays: Quest.questDays(), streak: Quest.weeklyStreak(),
+                         planDay: Store.dayRecord().planCourseDay ?? profile.courseDay)
         LiveActivityService.sync(profile: profile)
     }
 
+    /// After a game, review or lesson closes: refresh, and celebrate if that step finished the day.
+    private func afterStep() {
+        refresh()
+        if !wasDoneBefore && Store.dayRecord().questDone { celebrate = true }
+    }
+
     private func handleRoute() {
-        guard let destination = router.pending else { return }
+        guard router.pending == .startQuest else { return }   // other routes belong to other tabs
         router.pending = nil
         refresh()
-        if destination == .startQuest, let next = steps.first(where: { !$0.done }) { start(next) }
+        if let next = steps.first(where: { !$0.done }) { start(next) }
     }
 
     private func start(_ step: QuestStep) {
+        wasDoneBefore = Store.dayRecord().questDone
         Haptic.tap()
         switch step.kind {
         case .vault: reviewing = true
@@ -221,61 +248,9 @@ struct TodayView: View {
         }
     }
 
-    private func title(for step: QuestStep) -> String {
-        switch step.kind {
-        case .vault: return "Vault warm-up"
-        case .lesson(let id): return "Lesson · \(Course.lesson(id)?.title ?? "")"
-        case .task(let t, let size):
-            switch t {
-            case .wordSprint, .sprintRetention, .listReview: return "\(theme.copy.realmName(t)) · \(size) words"
-            case .numberSprint: return "\(theme.copy.realmName(t)) · \(size) digits"
-            case .dualNBack: return "\(theme.copy.realmName(t)) · \(size)-back"
-            default: return theme.copy.realmName(t)
-            }
-        }
-    }
-
-    private func subtitle(for step: QuestStep) -> String {
-        switch step.kind {
-        case .vault:
-            let due = Quest.dueCards().count
-            return due > 0 ? "\(due) cards ready — recall before you reveal" : "Cards reviewed"
-        case .lesson: return "A few minutes of technique"
-        case .task(let t, let size):
-            if step.isBenchmark && Quest.inBaseline(profile) {
-                return "Baseline \(min(3, profile.benchmarkCount + (Quest.benchmarkDoneToday(profile) ? 0 : 1))) of 3 · " + (t == .wordRecall ? "30 words" : "digits in order")
-            }
-            switch t {
-            case .listReview: return "\(size) words from \(step.reviewOffset) days ago"
-            case .championTest: return "72 words · about 35 min"
-            case .championDelayed: return "Yesterday's 72 words"
-            default: return theme.copy.realmBlurb(t)
-            }
-        }
-    }
-
-    private func icon(for step: QuestStep) -> String {
-        switch step.kind {
-        case .vault: return "rectangle.stack.fill"
-        case .lesson: return "book.fill"
-        case .task(let t, _):
-            switch t {
-            case .routeWalk: return "figure.walk"
-            case .wordSprint, .sprintRetention: return "building.columns.fill"
-            case .numberSprint: return "number"
-            case .dualNBack: return "square.grid.3x3.fill"
-            case .complexSpan: return "plusminus"
-            case .sequences: return "sparkles"
-            case .faceName: return "person.2.fill"
-            case .ancientRunes: return "character.book.closed.fill"
-            case .stash: return "shippingbox.fill"
-            case .wordRecall, .digitSpan: return "flag.checkered"
-            case .championTest: return "trophy.fill"
-            case .championDelayed: return "sunrise.fill"
-            case .listReview: return "arrow.counterclockwise"
-            }
-        }
-    }
+    private func title(for step: QuestStep) -> String { StepText.title(step, theme: theme) }
+    private func subtitle(for step: QuestStep) -> String { StepText.subtitle(step, theme: theme, profile: profile) }
+    private func icon(for step: QuestStep) -> String { StepText.symbol(step) }
 }
 
 /// Identifiable wrapper so a `GameContext` can drive `fullScreenCover(item:)`.
@@ -325,7 +300,8 @@ struct TrailPath<Node: View>: View {
     let doneCount: Int
     @ViewBuilder let node: (Int) -> Node
 
-    static var rowHeight: CGFloat { 104 }
+    /// Grows with Dynamic Type so long titles never run into the next stone.
+    @ScaledMetric(relativeTo: .body) var rowHeight: CGFloat = 104
 
     var body: some View {
         GeometryReader { geo in
@@ -335,17 +311,17 @@ struct TrailPath<Node: View>: View {
                 path(Array(pts.prefix(doneCount + 1))).stroke(theme.primary.opacity(0.7), style: StrokeStyle(lineWidth: theme.pixelBorders ? 4 : 2, lineCap: .round, dash: theme.pixelBorders ? [6, 6] : []))
                 ForEach(0..<count, id: \.self) { i in
                     node(i)
-                        .frame(width: geo.size.width, height: Self.rowHeight)
-                        .offset(y: pts[i].y - Self.rowHeight / 2)
+                        .frame(width: geo.size.width, height: rowHeight)
+                        .offset(y: pts[i].y - rowHeight / 2)
                 }
             }
         }
-        .frame(height: CGFloat(count) * Self.rowHeight)
+        .frame(height: CGFloat(count) * rowHeight)
         .accessibilityElement(children: .contain)
     }
 
     private func points(width: CGFloat) -> [CGPoint] {
-        (0..<count).map { CGPoint(x: $0 % 2 == 0 ? 44 : width - 44, y: Self.rowHeight / 2 + CGFloat($0) * Self.rowHeight) }
+        (0..<count).map { CGPoint(x: $0 % 2 == 0 ? 44 : width - 44, y: rowHeight / 2 + CGFloat($0) * rowHeight) }
     }
 
     private func path(_ pts: [CGPoint]) -> Path {
@@ -383,7 +359,9 @@ struct TrailNode: View {
         .buttonStyle(.plain)
         .disabled(state == .done)
         .accessibilityLabel("\(title). \(subtitle)\(state == .done ? ". Done" : "")")
-        .onAppear {
+        // Follows the stone's state, so only the current "next" stone pulses.
+        .task(id: state == .next) {
+            pulse = false
             guard state == .next, !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) { pulse = true }
         }

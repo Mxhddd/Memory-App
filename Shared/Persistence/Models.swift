@@ -79,6 +79,12 @@ final class TaskSession {
     var palaceID: UUID?
     /// Days after learning for a list re-recall (3, 7 or 21); 0 otherwise.
     var reviewOffset: Int = 0
+    /// Played from the Train tab: counts for progress, not for the day's plan.
+    var isFreePlay: Bool = false
+    /// "How many will you get?" asked before recall (metamemory calibration).
+    var prediction: Int?
+    /// Average study time per item in a sprint (speed ladder).
+    var secondsPerItem: Double?
 
     init(task: RealmTask, correct: Int, total: Int, meanRTms: Double, score: Double, level: Int,
          seed: String, courseDay: Int, isBenchmark: Bool = false, palaceID: UUID? = nil, reviewOffset: Int = 0, date: Date = Date()) {

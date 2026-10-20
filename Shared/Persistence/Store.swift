@@ -8,9 +8,11 @@ enum Store {
         Supporter.self, DayRecord.self, Palace.self,
     ])
 
-    /// Local-only store (no CloudKit — that needs a paid developer account).
+    /// Local-only store (no CloudKit — that needs a paid developer account), kept in the App Group
+    /// container so widgets, Control Center controls and App Intents can read and update it too.
     static let container: ModelContainer = {
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, groupContainer: .none, cloudKitDatabase: .none)
+        let group: ModelConfiguration.GroupContainer = SharedStore.isAvailable ? .identifier(SharedStore.groupID) : .none
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, groupContainer: group, cloudKitDatabase: .none)
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
@@ -40,14 +42,21 @@ enum Store {
         try? context.save()
     }
 
-    /// Wipes everything on this phone.
+    /// Wipes everything on this phone. Objects are deleted one by one (not in a batch) so every
+    /// `@Query` notices and the app falls back to onboarding instead of holding deleted rows.
     @MainActor
     static func deleteEverything() {
-        func wipe<T: PersistentModel>(_ type: T.Type) { try? context.delete(model: type) }
-        wipe(Profile.self); wipe(TaskSession.self); wipe(MemoryCard.self); wipe(ReviewLogEntry.self)
-        wipe(Intention.self); wipe(Supporter.self); wipe(DayRecord.self); wipe(Palace.self)
+        func wipe<T: PersistentModel>(_ type: T.Type) {
+            for object in (try? context.fetch(FetchDescriptor<T>())) ?? [] { context.delete(object) }
+        }
+        wipe(TaskSession.self); wipe(MemoryCard.self); wipe(ReviewLogEntry.self); wipe(Intention.self)
+        wipe(Supporter.self); wipe(DayRecord.self); wipe(Palace.self); wipe(Profile.self)
         try? context.save()
         SharedStore.clear()
         UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier ?? "")
+        SharedStore.defaults?.removePersistentDomain(forName: SharedStore.groupID)
     }
+
+    /// True while a model still belongs to the live store (false after "Delete everything").
+    static func isLive(_ model: some PersistentModel) -> Bool { model.modelContext != nil && !model.isDeleted }
 }

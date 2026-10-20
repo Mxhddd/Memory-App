@@ -7,6 +7,8 @@ import MemoryCore
 struct ReviewSessionView: View {
     @Bindable var profile: Profile
     let countsForSession: Bool
+    /// A card to show first (from a widget, notification or Spotlight), even if it isn't due yet.
+    var focus: UUID? = nil
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
 
@@ -58,6 +60,10 @@ struct ReviewSessionView: View {
         while lists.contains(where: { !$0.isEmpty }) {
             for i in lists.indices where !lists[i].isEmpty { out.append(lists[i].removeFirst()) }
         }
+        if let focus {
+            out.removeAll { $0 == focus }
+            out.insert(focus, at: 0)
+        }
         queue = Array(out.prefix(60))
         started = Date()
         advance()
@@ -68,7 +74,7 @@ struct ReviewSessionView: View {
         typed = ""
         if Date().timeIntervalSince(started) > timeCapSeconds || queue.isEmpty {
             current = nil
-            if reviewed > 0 || countsForSession { _ = Quest.markVaultDone(profile: profile) }
+            if countsForSession || reviewed > 0 { _ = Quest.markVaultDone(profile: profile) }
             return
         }
         current = queue.removeFirst()

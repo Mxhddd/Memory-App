@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 #if canImport(AlarmKit)
 import AlarmKit
+import AppIntents
 #endif
 
 /// iOS 26+ AlarmKit: user-set intentions at the "Alarm" level ring through Silent mode and Focus,
@@ -36,22 +37,41 @@ enum AlarmService {
         return false
     }
 
-    /// Cancels the alarms we scheduled before and schedules the current alarm-level intentions.
+    /// Brings AlarmKit in line with the alarm-level reminders, touching only what changed
+    /// (each alarm is remembered with a signature of its text, time and repeat).
     static func sync(intentions: [Intention]) {
         #if canImport(AlarmKit)
         guard #available(iOS 26.0, *), isAuthorized else { return }
-        let previous = (UserDefaults.standard.stringArray(forKey: scheduledKey) ?? []).compactMap(UUID.init(uuidString:))
-        for id in previous { try? AlarmManager.shared.cancel(id: id) }
-
+        let previous = UserDefaults.standard.dictionary(forKey: scheduledKey) as? [String: String] ?? [:]
         let now = Date()
         let wanted = intentions.filter { $0.active && $0.level == .alarm && ($0.repeatsDaily || ($0.time > now && !$0.isDone(on: now))) }
-        let payload = wanted.map { (id: $0.id, text: $0.text, time: $0.time, repeats: $0.repeatsDaily) }
-        UserDefaults.standard.set(wanted.map(\.id.uuidString), forKey: scheduledKey)
+        var next: [String: String] = [:]
+        var toSchedule: [(id: UUID, text: String, time: Date, repeats: Bool)] = []
+        for i in wanted {
+            let hm = Calendar.current.dateComponents([.hour, .minute], from: i.time)
+            let signature = i.repeatsDaily ? "\(i.text)|daily|\(hm.hour ?? 0):\(hm.minute ?? 0)" : "\(i.text)|\(Int(i.time.timeIntervalSince1970))"
+            next[i.id.uuidString] = signature
+            if previous[i.id.uuidString] != signature { toSchedule.append((i.id, i.text, i.time, i.repeatsDaily)) }
+        }
+        for (key, signature) in previous where next[key] != signature {
+            if let id = UUID(uuidString: key) { try? AlarmManager.shared.cancel(id: id) }
+        }
+        UserDefaults.standard.set(next, forKey: scheduledKey)
         Task {
-            for item in payload {
+            for item in toSchedule {
                 try? await schedule(id: item.id, text: item.text, time: item.time, repeats: item.repeats)
             }
         }
+        #endif
+    }
+
+    /// Cancels every alarm this app scheduled (used before "Delete everything").
+    static func cancelAll() {
+        #if canImport(AlarmKit)
+        guard #available(iOS 26.0, *) else { return }
+        let previous = UserDefaults.standard.dictionary(forKey: scheduledKey) as? [String: String] ?? [:]
+        for key in previous.keys { if let id = UUID(uuidString: key) { try? AlarmManager.shared.cancel(id: id) } }
+        UserDefaults.standard.removeObject(forKey: scheduledKey)
         #endif
     }
 
@@ -80,7 +100,7 @@ enum AlarmService {
             countdownDuration: nil,
             schedule: schedule,
             attributes: attributes,
-            stopIntent: nil,
+            stopIntent: AlarmDoneIntent(intentionID: id),
             secondaryIntent: nil,
             sound: .default
         )
@@ -90,6 +110,27 @@ enum AlarmService {
 }
 
 #if canImport(AlarmKit)
+/// The alarm's "Done" button: stops the alarm and ticks the reminder off for today.
+@available(iOS 26.0, *)
+struct AlarmDoneIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Reminder done"
+    static var isDiscoverable: Bool = false
+
+    @Parameter(title: "Reminder") var intentionID: String
+
+    init() {}
+    init(intentionID: UUID) { self.intentionID = intentionID.uuidString }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        if let id = UUID(uuidString: intentionID) {
+            try? AlarmManager.shared.stop(id: id)
+            Notifications.markIntentionDone(id)
+        }
+        return .result()
+    }
+}
+
 @available(iOS 26.0, *)
 struct IntentionAlarmMetadata: AlarmMetadata {
     var text: String

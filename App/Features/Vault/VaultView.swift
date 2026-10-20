@@ -8,7 +8,9 @@ struct VaultView: View {
     @Bindable var profile: Profile
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
+    @EnvironmentObject private var router: Router
     @Query(sort: \MemoryCard.createdAt, order: .reverse) private var cards: [MemoryCard]
+    @State private var focusCard: UUID?
     @State private var adding = false
     @State private var importing = false
     @State private var reviewing = false
@@ -73,8 +75,18 @@ struct VaultView: View {
         .sheet(isPresented: $adding) { CardEditor(card: nil, decks: decks).environment(\.theme, theme) }
         .sheet(isPresented: $importing) { ImportSheet(decks: decks).environment(\.theme, theme) }
         .sheet(item: $editing) { card in CardEditor(card: card, decks: decks).environment(\.theme, theme) }
-        .fullScreenCover(isPresented: $reviewing) {
-            NavigationStack { ReviewSessionView(profile: profile, countsForSession: false) }.environment(\.theme, theme)
+        .fullScreenCover(isPresented: $reviewing, onDismiss: { focusCard = nil }) {
+            NavigationStack { ReviewSessionView(profile: profile, countsForSession: false, focus: focusCard) }.environment(\.theme, theme)
+        }
+        .onChange(of: router.pending) { _, _ in handleRoute() }
+        .task { handleRoute() }
+    }
+
+    private func handleRoute() {
+        switch router.pending {
+        case .review: router.pending = nil; reviewing = true
+        case .card(let id): router.pending = nil; focusCard = id; reviewing = true
+        default: break
         }
     }
 

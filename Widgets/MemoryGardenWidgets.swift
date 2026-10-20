@@ -1,22 +1,25 @@
 import WidgetKit
 import SwiftUI
-#if canImport(ActivityKit)
-import ActivityKit
-#endif
 import MemoryCore
 
-// The ONE app extension (free-account SideStore limit): widgets + Live Activity live here.
+// The ONE app extension (a free Apple ID can only afford one more App ID): every widget,
+// Control Center control and the Live Activity live in this bundle.
 
 @main
 struct MemoryGardenWidgetBundle: WidgetBundle {
     var body: some Widget {
-        DenWidget()
+        TrailWidget()
+        FlashcardWidget()
+        RemindersWidget()
         LockScreenWidget()
         QuestLiveActivity()
+        StartTrainingControl()
+        ReviewCardControl()
+        ReminderDoneControl()
     }
 }
 
-// MARK: Timeline
+// MARK: Snapshot timeline (written by the app)
 
 struct SnapshotEntry: TimelineEntry {
     let date: Date
@@ -30,197 +33,114 @@ struct SnapshotProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SnapshotEntry) -> Void) {
-        completion(entry())
+        completion(context.isPreview ? placeholder(in: context) : entry(at: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
-        // The app reloads timelines whenever something changes; refresh hourly as a fallback,
-        // and right after midnight so yesterday's progress doesn't linger.
+        // The app reloads timelines whenever something changes. As a fallback, refresh hourly and
+        // add an entry just after midnight so yesterday's progress never lingers.
         let now = Date()
-        let midnight = Calendar.current.startOfDay(for: now.addingTimeInterval(86_400))
-        let next = min(now.addingTimeInterval(3600), midnight.addingTimeInterval(60))
-        var e = entry()
-        if !Calendar.current.isDate(e.snapshot.updatedAt, inSameDayAs: now) {
-            e = SnapshotEntry(date: now, snapshot: dayRolledOver(e.snapshot), isPlaceholder: e.isPlaceholder)
+        let midnight = Calendar.current.startOfDay(for: now.addingTimeInterval(86_400)).addingTimeInterval(30)
+        let entries = [entry(at: now), entry(at: midnight)]
+        completion(Timeline(entries: entries, policy: .after(min(now.addingTimeInterval(3600), midnight))))
+    }
+
+    private func entry(at date: Date) -> SnapshotEntry {
+        guard var s = SharedStore.readSnapshot() else {
+            return SnapshotEntry(date: date, snapshot: .placeholder, isPlaceholder: true)
         }
-        completion(Timeline(entries: [e], policy: .after(next)))
-    }
-
-    private func entry() -> SnapshotEntry {
-        if let s = SharedStore.readSnapshot() { return SnapshotEntry(date: Date(), snapshot: s, isPlaceholder: false) }
-        return SnapshotEntry(date: Date(), snapshot: .placeholder, isPlaceholder: true)
-    }
-
-    private func dayRolledOver(_ s: WidgetSnapshot) -> WidgetSnapshot {
-        var copy = s
-        copy.questDone = 0
-        copy.questComplete = false
-        return copy
+        if !Calendar.current.isDate(s.updatedAt, inSameDayAs: date) {
+            // A new day the app hasn't seen yet: show a fresh, unstarted trail.
+            s.questDone = 0
+            s.questComplete = false
+            s.steps = s.steps.map { WidgetSnapshot.Step(title: $0.title, symbol: $0.symbol, done: false) }
+            s.reminders = s.reminders.filter { $0.time > date }
+        }
+        return SnapshotEntry(date: date, snapshot: s, isPlaceholder: false)
     }
 }
 
-private extension WidgetSnapshot {
+extension WidgetSnapshot {
     var theme: Theme { Theme.forID(ThemeID(rawValue: themeRaw) ?? .midnightRaccoon) }
-}
-
-// MARK: Home Screen
-
-struct DenWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "DenWidget", provider: SnapshotProvider()) { entry in
-            DenWidgetView(entry: entry)
-                .containerBackground(for: .widget) {
-                    LinearGradient(colors: [entry.snapshot.theme.backgroundTop, entry.snapshot.theme.background],
-                                   startPoint: .top, endPoint: .bottom)
-                }
-                .widgetURL(URL(string: "memorygarden://quest"))
-        }
-        .configurationDisplayName("The Den")
-        .description("Your companion, today's training and your next reminder.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+    var atelier: Bool { themeRaw == ThemeID.gildedAtelier.rawValue }
+    /// Days until the SideStore signature expires, when it's getting close (≤ 2 days).
+    var refreshSoon: Int? {
+        guard let expiry = signatureExpiry else { return nil }
+        let days = Int(expiry.timeIntervalSinceNow / 86_400)
+        return days <= 2 ? max(0, days) : nil
     }
 }
 
-struct DenWidgetView: View {
-    let entry: SnapshotEntry
-    @Environment(\.widgetFamily) private var family
+enum WidgetLinks {
+    static let quest = URL(string: "memorygarden://quest")!
+    static let today = URL(string: "memorygarden://today")!
+    static let review = URL(string: "memorygarden://review")!
+    static let reminders = URL(string: "memorygarden://reminders")!
+    static func card(_ id: UUID) -> URL { URL(string: "memorygarden://card/\(id.uuidString)")! }
+}
+
+// MARK: Shared pieces
+
+/// The growing room, drawn statically for widgets (props from `RoomScene`, no animation).
+struct WidgetRoom: View {
+    let theme: Theme
+    let stage: Int
+    var happy = false
 
     var body: some View {
-        let s = entry.snapshot
-        let theme = s.theme
-        let art = s.questComplete ? theme.mascotHappy : theme.mascotIdle
-        switch family {
-        case .systemMedium:
-            HStack(spacing: 12) {
-                VStack(spacing: 6) {
-                    PixelSpriteView(art: art).frame(width: 70, height: 70)
-                    Text(s.mascotName).font(.caption.weight(.semibold)).foregroundStyle(theme.text)
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    questLine(s, theme)
-                    if let text = s.nextIntentionText, let time = s.nextIntentionTime {
-                        Label { Text("\(text) · \(time, style: .time)").lineLimit(1) } icon: { Image(systemName: "bell.fill") }
-                            .font(.caption).foregroundStyle(theme.text)
+        GeometryReader { geo in
+            let k = geo.size.width / RoomScene.size.width
+            let atelier = theme.id == .gildedAtelier
+            ZStack(alignment: .topLeading) {
+                LinearGradient(colors: atelier ? [Color(hex: 0xE9DEC4), Color(hex: 0xEFE6D0)] : [Color(hex: 0x2A2042), Color(hex: 0x1F1730)],
+                               startPoint: .top, endPoint: .bottom)
+                (atelier ? Color(hex: 0xE2D3B1) : Color(hex: 0x1D1630))
+                    .frame(height: 52 * k).offset(y: 248 * k)
+                Ellipse().fill(atelier ? Color(hex: 0xC0563B) : Color(hex: 0x3A2550))
+                    .frame(width: 240 * k, height: 32 * k).offset(x: 75 * k, y: 237 * k)
+                ForEach(RoomScene.props(atelier: atelier, stage: stage), id: \.key) { p in
+                    if let art = Sprites.sceneProps[p.key] {
+                        PixelSpriteView(art: art).frame(width: p.width * k, height: p.height * k).offset(x: p.x * k, y: p.y * k)
                     }
-                    if s.dueCards > 0 {
-                        Label("\(s.dueCards) cards ready", systemImage: "rectangle.stack.fill").font(.caption).foregroundStyle(theme.secondaryText)
-                    }
-                    Spacer(minLength: 0)
-                    Text("Course day \(s.courseDay)/42 · ✦ \(s.shinies)").font(.caption2.weight(.semibold)).foregroundStyle(theme.ornament)
                 }
+                PixelSpriteView(art: happy ? theme.mascotHappy : theme.mascotIdle)
+                    .frame(width: 120 * k, height: 120 * k).offset(x: 135 * k, y: 136 * k)
             }
-        default:
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    PixelSpriteView(art: art).frame(width: 52, height: 52)
-                    Spacer()
-                    Label("\(s.shinies)", systemImage: "sparkles").font(.caption.weight(.bold)).foregroundStyle(theme.ornament)
-                }
-                questLine(s, theme)
-                Spacer(minLength: 0)
-                Text("Day \(s.courseDay)/42").font(.caption2.weight(.semibold)).foregroundStyle(theme.secondaryText)
-            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .clipped()
         }
-    }
-
-    private func questLine(_ s: WidgetSnapshot, _ theme: Theme) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(s.questComplete ? "Trained today" : theme.copy.questTitle)
-                .font(.subheadline.weight(.bold)).foregroundStyle(theme.text).lineLimit(1)
-            ProgressView(value: Double(s.questDone), total: Double(max(s.questTotal, 1)))
-                .tint(theme.primary)
-        }
+        .aspectRatio(RoomScene.size.width / RoomScene.size.height, contentMode: .fit)
     }
 }
 
-// MARK: Lock Screen
-
-struct LockScreenWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "LockScreenWidget", provider: SnapshotProvider()) { entry in
-            LockScreenView(entry: entry)
-                .containerBackground(for: .widget) { Color.clear }
-                .widgetURL(URL(string: "memorygarden://quest"))
-        }
-        .configurationDisplayName("Training & reminders")
-        .description("Today's progress or your next reminder, at a glance.")
-        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
-    }
-}
-
-struct LockScreenView: View {
-    let entry: SnapshotEntry
-    @Environment(\.widgetFamily) private var family
+/// A row of stepping stones: diamonds in the Den, dots in the Atelier.
+struct StoneRow: View {
+    let steps: [Bool]
+    let theme: Theme
+    var size: CGFloat = 10
 
     var body: some View {
-        let s = entry.snapshot
-        switch family {
-        case .accessoryCircular:
-            Gauge(value: Double(s.questDone), in: 0...Double(max(s.questTotal, 1))) {
-                Image(systemName: s.questComplete ? "sparkles" : "moon.stars.fill")
-            } currentValueLabel: {
-                Text("\(s.questDone)/\(s.questTotal)")
-            }
-            .gaugeStyle(.accessoryCircularCapacity)
-        case .accessoryInline:
-            if let text = s.nextIntentionText, let time = s.nextIntentionTime {
-                Text("\(Image(systemName: "bell.fill")) \(text) \(time, style: .time)")
-            } else {
-                Text(s.questComplete ? "\(Image(systemName: "sparkles")) Trained today" : "\(Image(systemName: "moon.stars.fill")) Training \(s.questDone)/\(s.questTotal)")
-            }
-        default:
-            VStack(alignment: .leading, spacing: 2) {
-                Text(s.questComplete ? "Trained" : "Training \(s.questDone)/\(s.questTotal)").font(.headline)
-                if let text = s.nextIntentionText, let time = s.nextIntentionTime {
-                    Text("\(text) · \(time, style: .time)").font(.caption).lineLimit(1)
-                } else if s.dueCards > 0 {
-                    Text("\(s.dueCards) cards ready").font(.caption)
+        HStack(spacing: size * 0.6) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { _, done in
+                Group {
+                    if theme.pixelBorders {
+                        Rectangle().fill(done ? theme.primary : theme.raised).rotationEffect(.degrees(45)).frame(width: size * 0.75, height: size * 0.75)
+                    } else {
+                        Circle().fill(done ? theme.primary : theme.raised)
+                    }
                 }
+                .frame(width: size, height: size)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .accessibilityElement()
+        .accessibilityLabel("\(steps.filter { $0 }.count) of \(steps.count) steps done")
     }
 }
 
-// MARK: Live Activity
-
-struct QuestLiveActivity: Widget {
-    var body: some WidgetConfiguration {
-        ActivityConfiguration(for: QuestActivityAttributes.self) { context in
-            let theme = Theme.forID(ThemeID(rawValue: context.attributes.themeRaw) ?? .midnightRaccoon)
-            HStack(spacing: 12) {
-                PixelSpriteView(art: context.state.done == context.state.total ? theme.mascotHappy : theme.mascotIdle)
-                    .frame(width: 48, height: 48)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(context.state.headline).font(.headline).foregroundStyle(theme.text)
-                    ProgressView(value: Double(context.state.done), total: Double(max(context.state.total, 1))).tint(theme.primary)
-                }
-                Text("\(context.state.done)/\(context.state.total)").font(.title3.monospacedDigit().weight(.bold)).foregroundStyle(theme.text)
-            }
-            .padding(16)
-            .activityBackgroundTint(theme.background)
-            .activitySystemActionForegroundColor(theme.text)
-            .widgetURL(URL(string: "memorygarden://quest"))
-        } dynamicIsland: { context in
-            let theme = Theme.forID(ThemeID(rawValue: context.attributes.themeRaw) ?? .midnightRaccoon)
-            return DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    PixelSpriteView(art: theme.mascotIdle).frame(width: 40, height: 40)
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(context.state.done)/\(context.state.total)").font(.title3.weight(.bold))
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.headline).font(.subheadline)
-                }
-            } compactLeading: {
-                PixelSpriteView(art: theme.mascotIdle).frame(width: 22, height: 22)
-            } compactTrailing: {
-                Text("\(context.state.done)/\(context.state.total)").font(.caption.weight(.bold))
-            } minimal: {
-                Text("\(context.state.done)").font(.caption.weight(.bold))
-            }
-            .widgetURL(URL(string: "memorygarden://quest"))
-        }
+/// Background shared by the Home Screen widgets.
+struct WidgetBackdrop: View {
+    let theme: Theme
+    var body: some View {
+        LinearGradient(colors: [theme.backgroundTop, theme.background], startPoint: .top, endPoint: .bottom)
     }
 }

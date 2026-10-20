@@ -85,7 +85,11 @@ struct PalaceEditor: View {
             } header: {
                 Text("Stops in walking order (\(stops.count))")
             } footer: {
-                Text("Pick distinct places in the order you'd walk past them. Aim for 10 to start and 20+ later.")
+                if let dup = duplicateStop {
+                    Label("“\(dup)” appears twice. Give each stop its own name so the images don't collide.", systemImage: "exclamationmark.triangle.fill")
+                } else {
+                    Text("Pick distinct places in the order you'd walk past them. Aim for 10 to start and 20+ later.")
+                }
             }
             if stops.count >= 2 {
                 Section("The route as you'll walk it") {
@@ -114,6 +118,15 @@ struct PalaceEditor: View {
         .onAppear {
             if let palace { name = palace.name; stops = palace.stops }
         }
+    }
+
+    private var duplicateStop: String? {
+        var seen = Set<String>()
+        for stop in stops {
+            let key = stop.trimmingCharacters(in: .whitespaces).lowercased()
+            if !key.isEmpty, !seen.insert(key).inserted { return stop }
+        }
+        return nil
     }
 
     private func addStop() {

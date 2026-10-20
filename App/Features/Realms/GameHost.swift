@@ -13,6 +13,10 @@ struct GameHost: View {
     private enum Phase { case intro, playing, result(GameOutcome, Bool) }
     @State private var phase: Phase = .intro
     @State private var buildingPalace = false
+    /// Set the moment the player closes the game: late callbacks from game timers are ignored.
+    @State private var closed = false
+    @State private var playStarted: Date?
+    @State private var confirmClose = false
 
     private var palace: Palace? {
         if let id = ctx.palaceID, let p = palaces.first(where: { $0.id == id }) { return p }
@@ -32,7 +36,7 @@ struct GameHost: View {
         }
         .overlay(alignment: .topLeading) {
             if case .result = phase {} else {
-                Button { onClose(false) } label: {
+                Button { requestClose() } label: {
                     Image(systemName: "xmark.circle.fill").font(.title).foregroundStyle(theme.secondaryText)
                         .frame(width: 48, height: 48)
                 }
@@ -41,6 +45,32 @@ struct GameHost: View {
             }
         }
         .sheet(isPresented: $buildingPalace) { NavigationStack { PalaceEditor(palace: nil) }.environment(\.theme, theme) }
+        .confirmationDialog("Stop this round?", isPresented: $confirmClose, titleVisibility: .visible) {
+            Button("Stop — don't save it", role: .destructive) { close() }
+            Button("Keep going", role: .cancel) {}
+        } message: {
+            Text("You're part-way through. Nothing from this round will be saved.")
+        }
+        // Long drills (20-minute study, n-back) must not be interrupted by auto-lock.
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            Speech.shared.stop()
+        }
+    }
+
+    private func requestClose() {
+        if case .playing = phase, let started = playStarted, Date().timeIntervalSince(started) > 60 {
+            confirmClose = true
+        } else {
+            close()
+        }
+    }
+
+    private func close() {
+        closed = true
+        Speech.shared.stop()
+        onClose(false)
     }
 
     // MARK: Intro
@@ -81,6 +111,7 @@ struct GameHost: View {
                 } else {
                     Button("I'm ready") {
                         Haptic.tap()
+                        playStarted = Date()
                         phase = .playing
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -94,6 +125,7 @@ struct GameHost: View {
 
     @ViewBuilder private var game: some View {
         let finish: (GameOutcome) -> Void = { outcome in
+            guard !closed, case .playing = phase else { return }   // closed or already finished
             let completed = Quest.record(outcome, ctx: ctx, profile: profile)
             SFX.play(.shiny)
             phase = .result(outcome, completed)

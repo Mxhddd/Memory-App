@@ -136,7 +136,7 @@ struct DigitSpanGame: View {
                     .background(RoundedRectangle(cornerRadius: theme.cornerRadius).fill(theme.surface))
                     .foregroundStyle(theme.text)
                     .onAppear { focused = true }
-                Button("Done") { submit() }.buttonStyle(PrimaryButtonStyle())
+                Button("Done") { submit() }.buttonStyle(PrimaryButtonStyle()).disabled(!entering)
             } else {
                 Text(showing.map(String.init) ?? " ").font(theme.display(80).monospacedDigit()).foregroundStyle(theme.text)
             }
@@ -161,6 +161,8 @@ struct DigitSpanGame: View {
     }
 
     private func submit() {
+        guard entering else { return }   // ignore a double tap while the next sequence loads
+        entering = false
         let ok = answer.filter(\.isNumber) == current.map(String.init).joined()
         results.append((length, ok))
         SFX.play(ok ? .correct : .gentle)

@@ -5,7 +5,7 @@ name: MemoryGarden
 options:
   bundleIdPrefix: com.mxhddd
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
   createIntermediateGroups: true
   developmentLanguage: en
 settings:
@@ -66,13 +66,16 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: memorygarden
             CFBundleURLSchemes: [memorygarden]
+        # Lets the app open SideStore to refresh its signature.
+        LSApplicationQueriesSchemes: [sidestore]
+        # Background refresh (free capability) rolls widgets, the Live Activity and reminders over at midnight.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.mxhddd.memorygarden.dayrollover]
     entitlements:
       path: App/MemoryGarden.entitlements
       properties:
+        # Only capabilities a free Apple ID can sign: App Groups (shared with the widget extension).
         com.apple.security.application-groups: [$(APP_GROUP_ID)]
-        # If Xcode refuses this on a free team, delete the next line and re-run xcodegen —
-        # reminders then use the normal "active" level instead.
-        com.apple.developer.usernotifications.time-sensitive: true
 
   MemoryGardenWidgets:
     type: app-extension
@@ -82,6 +85,7 @@ targets:
       - path: Shared
       - path: App/Design/Theme.swift
       - path: App/Design/PixelSpriteView.swift
+      - path: App/Design/Shapes.swift
       - path: App/Resources/Fonts
         buildPhase: resources
     dependencies:

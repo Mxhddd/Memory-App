@@ -72,7 +72,7 @@ struct PalaceMapView: View {
             if isCurrent { return theme.pixelBorders ? Color(hex: 0x3B2E55) : .white }
             switch mark {
             case .correct: return theme.success.opacity(theme.pixelBorders ? 0.16 : 0.10)
-            case .missed: return theme.primary.opacity(theme.pixelBorders ? 0.16 : 0.10)
+            case .missed: return theme.danger.opacity(theme.pixelBorders ? 0.18 : 0.12)
             default: return theme.pixelBorders ? theme.surface : theme.raised
             }
         }()
@@ -90,7 +90,7 @@ struct PalaceMapView: View {
             Spacer(minLength: 0)
             Text(labels[t.index] ?? " ")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(mark == .missed ? theme.primary : mark == .correct ? theme.success : theme.ornament)
+                .foregroundStyle(mark == .missed ? theme.danger : mark == .correct ? theme.success : theme.ornament)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }

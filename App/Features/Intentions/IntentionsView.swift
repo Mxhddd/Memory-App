@@ -8,6 +8,7 @@ struct IntentionsView: View {
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
     @Query(sort: \Intention.time) private var intentions: [Intention]
+    @EnvironmentObject private var router: Router
     @State private var adding = false
 
     var body: some View {
@@ -31,6 +32,7 @@ struct IntentionsView: View {
                     for i in offsets { context.delete(intentions[i]) }
                     try? context.save()
                     Notifications.replan(profile: profile)
+                    WidgetBridge.update(profile: profile)
                 }
             }
             .listRowBackground(theme.surface)
@@ -45,6 +47,8 @@ struct IntentionsView: View {
             }
         }
         .sheet(isPresented: $adding) { IntentionEditor(profile: profile).environment(\.theme, theme) }
+        .onChange(of: router.pending) { _, new in if new == .newReminder { router.pending = nil; adding = true } }
+        .task { if router.pending == .newReminder { router.pending = nil; adding = true } }
     }
 }
 

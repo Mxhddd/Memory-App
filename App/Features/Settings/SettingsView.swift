@@ -31,6 +31,8 @@ struct SettingsView: View {
                 DatePicker("Daily reminder", selection: $reminder, displayedComponents: .hourAndMinute)
                     .onChange(of: reminder) { _, value in
                         let hm = Calendar.current.dateComponents([.hour, .minute], from: value)
+                        // Opening Settings sets this too; only replan when the time really changed.
+                        guard hm.hour != profile.reminderHour || hm.minute != profile.reminderMinute else { return }
                         profile.reminderHour = hm.hour ?? 19
                         profile.reminderMinute = hm.minute ?? 30
                         Notifications.replan(profile: profile)
@@ -61,7 +63,7 @@ struct SettingsView: View {
                 Toggle("Type answers in the Vault", isOn: $profile.typedAnswers)
                 Toggle("Show letters in n-back", isOn: $profile.showNBackLetters)
                 Stepper(value: $profile.desiredRetention, in: 0.80...0.97, step: 0.01) {
-                    LabeledContent("Vault target", value: "\(Int(profile.desiredRetention * 100))% remembered")
+                    LabeledContent("Vault target", value: "\(Int((profile.desiredRetention * 100).rounded()))% remembered")
                 }
                 NavigationLink("My palaces") { PalaceListView() }
             } header: {
@@ -112,6 +114,7 @@ struct SettingsView: View {
             }
         }
         .onDisappear {
+            guard Store.isLive(profile) else { return }
             try? context.save()
             WidgetBridge.update(profile: profile)
         }
@@ -119,9 +122,7 @@ struct SettingsView: View {
             Button("Delete everything", role: .destructive) {
                 Task {
                     await CircleService.shared.deleteServerData()
-                    LiveActivityService.endAll()
-                    Notifications.center.removeAllPendingNotificationRequests()
-                    Store.deleteEverything()
+                    AppEvents.eraseEverything()
                 }
             }
         } message: {

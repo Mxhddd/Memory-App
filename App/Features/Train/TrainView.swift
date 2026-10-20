@@ -64,7 +64,8 @@ struct TrainView: View {
         Button {
             var ctx = Quest.context(for: task, size: size, profile: profile)
             ctx.seed += "-free\(Int(Date().timeIntervalSince1970))" // free practice gets fresh material
-            if task == .routeWalk { ctx.size = Quest.palaces().first?.stops.count ?? 0 }
+            ctx.isFreePlay = true
+            if task == .routeWalk { ctx.size = Quest.palaces().first(where: { $0.id == ctx.palaceID })?.stops.count ?? 0 }
             playing = ctx
         } label: {
             HStack {

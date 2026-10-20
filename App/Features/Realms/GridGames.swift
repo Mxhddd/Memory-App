@@ -21,6 +21,7 @@ struct SequencesGame: View {
     @State private var showing = true
     @State private var feedback: Bool?
     @State private var rng = SeededRandom("x")
+    @State private var alive = true
     @State private var trials: [(Double, Bool)] = []
 
     var body: some View {
@@ -58,11 +59,12 @@ struct SequencesGame: View {
             span = ctx.size > 1 ? ctx.size : 2 + ctx.level // resume from the last session's span
             await play()
         }
+        .onDisappear { alive = false }
     }
 
     private func cellColor(_ cell: Int) -> Color {
         if lit == cell { return theme.ornament }
-        if let feedback, !showing { return feedback ? theme.success.opacity(0.35) : theme.primary.opacity(0.25) }
+        if let feedback, !showing { return feedback ? theme.success.opacity(0.35) : theme.danger.opacity(0.3) }
         return input.contains(cell) ? theme.accent.opacity(0.5) : theme.surface
     }
 
@@ -74,6 +76,7 @@ struct SequencesGame: View {
         try? await Task.sleep(nanoseconds: 600_000_000)
         let step: UInt64 = 700_000_000
         for c in sequence {
+            guard alive else { return }
             lit = c
             SFX.play(.shiny)
             try? await Task.sleep(nanoseconds: step)
@@ -101,6 +104,7 @@ struct SequencesGame: View {
         if ok { correctTrials += 1; maxSpan = max(maxSpan, span); SFX.play(.correct) } else { SFX.play(.gentle) }
         Task {
             try? await Task.sleep(nanoseconds: 800_000_000)
+            guard alive else { return }
             trial += 1
             span = ok ? min(span + 1, side * side) : max(2, span - 1)
             if trial >= trialsTotal {
@@ -177,7 +181,7 @@ struct StashGame: View {
     private func fill(_ cell: Int) -> Color {
         guard let picked, t < order.count else { return theme.surface }
         if placements[order[t]].cell == cell { return theme.success.opacity(0.45) }
-        if picked == cell { return theme.primary.opacity(0.3) }
+        if picked == cell { return theme.danger.opacity(0.3) }
         return theme.surface
     }
 

@@ -26,6 +26,8 @@ struct Theme {
     let text: Color
     let secondaryText: Color
     let success: Color
+    /// "Not quite" feedback — always distinct from `success` and paired with an icon.
+    let danger: Color
     let outline: Color
     let ornament: Color
     let colorScheme: ColorScheme
@@ -92,6 +94,7 @@ extension Theme {
         text: Color(hex: 0xFFF4D6),
         secondaryText: Color(hex: 0xCFC3E6),
         success: Color(hex: 0x9FE3C8),
+        danger: Color(hex: 0xFF8FA3),
         outline: Color(hex: 0x0B0810),
         ornament: Color(hex: 0xFFE08A),
         colorScheme: .dark,
@@ -120,6 +123,7 @@ extension Theme {
         text: Color(hex: 0x1E2A44),
         secondaryText: Color(hex: 0x4A5368),
         success: Color(hex: 0x1F5C4A),
+        danger: Color(hex: 0xA8442F),           // terracotta: ≥ 4.9:1 on every Atelier surface
         outline: Color(hex: 0xB08D3C),          // decorative brass (borders only)
         ornament: Color(hex: 0x7A5C17),         // text-safe brass: ≥ 5.1:1 on every Atelier surface
         colorScheme: .light,

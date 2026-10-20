@@ -89,6 +89,7 @@ struct DualNBackGame: View {
                 try? await Task.sleep(nanoseconds: 2_500_000_000)
                 responses.append(pressed)
             }
+            if Task.isCancelled { return }
             let score = NBack.score(trials, responses: responses)
             hits += score.hits
             targets += score.targets
@@ -98,6 +99,7 @@ struct DualNBackGame: View {
             try? await Task.sleep(nanoseconds: 2_200_000_000)
             n = next
         }
+        if Task.isCancelled { return }
         onFinish(GameOutcome(correct: hits, total: max(targets, 1), meanRTms: 0,
                              score: targets > 0 ? Double(hits) / Double(targets) : 0, level: maxN, nextLevel: n))
     }
@@ -193,8 +195,9 @@ struct ComplexSpanGame: View {
 
     private func showLetter() {
         phase = .letter
-        Task {
+        equationTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if Task.isCancelled { return }
             itemIndex += 1
             if itemIndex >= sets[setIndex].count { phase = .recall; picks = [] } else { startEquation() }
         }

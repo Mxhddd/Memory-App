@@ -35,50 +35,6 @@ struct StarField: View {
     }
 }
 
-// MARK: Surfaces
-
-/// Rectangle with two-step pixel corners: the Den's answer to rounded corners.
-struct PixelCornerShape: Shape {
-    var step: CGFloat = 8
-
-    func path(in r: CGRect) -> Path {
-        let n = min(step, r.width / 4, r.height / 4), h = n / 2
-        var p = Path()
-        p.addLines([
-            CGPoint(x: r.minX, y: r.minY + n), CGPoint(x: r.minX + h, y: r.minY + n), CGPoint(x: r.minX + h, y: r.minY + h),
-            CGPoint(x: r.minX + n, y: r.minY + h), CGPoint(x: r.minX + n, y: r.minY),
-            CGPoint(x: r.maxX - n, y: r.minY), CGPoint(x: r.maxX - n, y: r.minY + h), CGPoint(x: r.maxX - h, y: r.minY + h),
-            CGPoint(x: r.maxX - h, y: r.minY + n), CGPoint(x: r.maxX, y: r.minY + n),
-            CGPoint(x: r.maxX, y: r.maxY - n), CGPoint(x: r.maxX - h, y: r.maxY - n), CGPoint(x: r.maxX - h, y: r.maxY - h),
-            CGPoint(x: r.maxX - n, y: r.maxY - h), CGPoint(x: r.maxX - n, y: r.maxY),
-            CGPoint(x: r.minX + n, y: r.maxY), CGPoint(x: r.minX + n, y: r.maxY - h), CGPoint(x: r.minX + h, y: r.maxY - h),
-            CGPoint(x: r.minX + h, y: r.maxY - n), CGPoint(x: r.minX, y: r.maxY - n),
-        ])
-        p.closeSubpath()
-        return p
-    }
-}
-
-/// The theme's surface shape: stepped pixel corners (Den) or soft continuous corners (Atelier).
-struct ThemeShape: Shape {
-    var pixel: Bool
-    var step: CGFloat = 8
-    var radius: CGFloat = 28
-
-    func path(in rect: CGRect) -> Path {
-        pixel ? PixelCornerShape(step: step).path(in: rect)
-              : RoundedRectangle(cornerRadius: radius, style: .continuous).path(in: rect)
-    }
-}
-
-extension Theme {
-    /// Surface shape at a given size class: `step` for the Den, `radius` for the Atelier.
-    func shape(step: CGFloat = 8, radius: CGFloat = 28) -> ThemeShape { ThemeShape(pixel: pixelBorders, step: step, radius: radius) }
-    /// Pill for buttons and chips.
-    var pill: ThemeShape { ThemeShape(pixel: pixelBorders, step: 6, radius: 999) }
-    var hairline: Color { pixelBorders ? Color(hex: 0x2E2640) : Color(hex: 0xE4D9C1) }
-}
-
 // MARK: Cards
 
 /// One soft surface, no outline: depth comes from tone (Den) or a soft lift (Atelier).
@@ -134,7 +90,8 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
-/// Big tappable answer tile used by all games.
+/// Big tappable answer tile used by all games. Right and wrong always carry an icon too,
+/// so feedback never depends on colour alone.
 struct ChoiceButtonStyle: ButtonStyle {
     @Environment(\.theme) private var theme
     var state: ChoiceState = .idle
@@ -146,8 +103,8 @@ struct ChoiceButtonStyle: ButtonStyle {
             switch state {
             case .idle: return theme.surface
             case .selected: return theme.accent.opacity(0.45)
-            case .correct: return theme.success.opacity(0.5)
-            case .wrong: return theme.primary.opacity(0.35)
+            case .correct: return theme.success.opacity(0.4)
+            case .wrong: return theme.danger.opacity(0.3)
             }
         }()
         return configuration.label
@@ -158,6 +115,15 @@ struct ChoiceButtonStyle: ButtonStyle {
             .padding(8)
             .background(theme.shape(step: 6, radius: 18).fill(fill))
             .overlay(theme.shape(step: 6, radius: 18).stroke(theme.pixelBorders || state != .idle ? .clear : theme.hairline, lineWidth: 1))
+            .overlay(alignment: .topTrailing) {
+                if state == .correct || state == .wrong {
+                    Image(systemName: state == .correct ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(state == .correct ? theme.success : theme.danger)
+                        .padding(6)
+                        .accessibilityLabel(state == .correct ? "Correct" : "Not this one")
+                }
+            }
             .opacity(configuration.isPressed ? 0.8 : 1)
             .contentShape(theme.shape(step: 6, radius: 18))
     }
@@ -272,11 +238,15 @@ final class Speech {
     private let synth = AVSpeechSynthesizer()
 
     func say(_ text: String) {
+        // Spoken content (n-back letters, read-aloud) must be heard even with the silent switch on.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         synth.stopSpeaking(at: .immediate)
         let u = AVSpeechUtterance(string: text)
         u.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
         synth.speak(u)
     }
+
+    func stop() { synth.stopSpeaking(at: .immediate) }
 }
 
 @MainActor

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import WidgetKit
 import MemoryCore
 
 /// One step of today's training session.
@@ -37,6 +38,9 @@ enum Quest {
 
     // MARK: Queries
 
+    /// Sessions that count toward the day's plan (free play from the Train tab doesn't).
+    static func planSessions(on date: Date = Date()) -> [TaskSession] { sessions(on: date).filter { !$0.isFreePlay } }
+
     static func sessions(on date: Date = Date()) -> [TaskSession] {
         let start = Calendar.current.startOfDay(for: date)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start)!
@@ -73,9 +77,9 @@ enum Quest {
         return Course.day(day, wordLevel: profile.wordLevel, digitLevel: profile.digitLevel)
     }
 
-    /// Fixes today's plan to the current course day the first time anything is done today.
-    static func pinPlan(_ profile: Profile) {
-        let record = Store.dayRecord()
+    /// Fixes the day's plan to the current course day the first time anything is done that day.
+    static func pinPlan(_ profile: Profile, date: Date = Date()) {
+        let record = Store.dayRecord(for: date)
         if record.planCourseDay == nil { record.planCourseDay = profile.courseDay }
     }
 
@@ -86,7 +90,7 @@ enum Quest {
 
     static func benchmarkDue(_ profile: Profile, date: Date = Date()) -> Bool {
         profile.benchmarks.isDue(on: date, lastCompleted: profile.lastBenchmark, completed: profile.benchmarkCount)
-            || sessions(on: date).contains { $0.isBenchmark } // keep showing today's battery once started
+            || planSessions(on: date).contains { $0.isBenchmark } // keep showing today's battery once started
     }
 
     static func benchmarkDoneToday(_ profile: Profile, date: Date = Date()) -> Bool {
@@ -104,7 +108,7 @@ enum Quest {
     }
 
     static func championDue(_ profile: Profile, date: Date = Date()) -> Bool {
-        if sessions(on: date).contains(where: { $0.task == .championTest }) { return true }
+        if planSessions(on: date).contains(where: { $0.task == .championTest }) { return true }
         let plan = Store.dayRecord(for: date).planCourseDay ?? profile.courseDay
         let since = profile.lastChampion.flatMap { Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: $0), to: Calendar.current.startOfDay(for: date)).day }
         return ChampionTest.isDue(courseDay: plan, taken: profile.championCount, daysSinceLast: since)
@@ -128,7 +132,7 @@ enum Quest {
 
     /// Today's later re-recall: the one already played today, or the most overdue one.
     static func listReviewFor(date: Date = Date()) -> (due: ListReview.Due, done: Bool)? {
-        if let s = sessions(on: date).first(where: { $0.task == .listReview }) {
+        if let s = planSessions(on: date).first(where: { $0.task == .listReview }) {
             return (due: ListReview.Due(seed: s.seed, size: s.level, offset: s.reviewOffset), done: true)
         }
         let raw = RealmTask.listReview.rawValue
@@ -138,13 +142,13 @@ enum Quest {
         return (due: due, done: false)
     }
 
-    static func yesterdaysSprint() -> TaskSession? {
-        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return nil }
+    static func yesterdaysSprint(date: Date = Date()) -> TaskSession? {
+        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: date) else { return nil }
         return sessions(on: yesterday).filter { $0.task == .wordSprint }.max { $0.level < $1.level }
     }
 
     static func steps(for profile: Profile, date: Date = Date()) -> [QuestStep] {
-        let today = sessions(on: date)
+        let today = planSessions(on: date)
         func done(_ t: RealmTask) -> Bool { today.contains { $0.task == t } }
         var steps: [QuestStep] = []
 
@@ -174,8 +178,8 @@ enum Quest {
             }
         }
 
-        // Re-recalls follow any sprint you played, baseline days included.
-        if let sprint = yesterdaysSprint() {
+        // Re-recalls follow any sprint you played (free play too): recalling it is the training.
+        if let sprint = yesterdaysSprint(date: date) {
             steps.append(QuestStep(kind: .task(.sprintRetention, size: sprint.level), done: done(.sprintRetention)))
         }
         if let review = listReviewFor(date: date) {
@@ -210,7 +214,7 @@ enum Quest {
         var reviewOffset = 0
         var championForm = 0
         if task == .wordRecall { seed = "benchmark" } // fixed forms; the form index rotates
-        if task == .sprintRetention, let s = yesterdaysSprint() {
+        if task == .sprintRetention, let s = yesterdaysSprint(date: date) {
             seed = s.seed
             if let id = s.palaceID { palaceID = id }   // walk the palace the words were placed in
         }
@@ -233,19 +237,31 @@ enum Quest {
         let level = task.domain == .associative ? DifficultyStore.level(for: task) : 2
         return GameContext(task: task, seed: seed, size: size, level: level, courseDay: profile.courseDay,
                            palaceID: palaceID, benchmarkForm: BenchmarkPlanner.form(forSession: profile.benchmarkCount, userSeed: salt(profile)),
-                           championForm: championForm, reviewOffset: reviewOffset, isBenchmark: task.isBenchmark)
+                           championForm: championForm, reviewOffset: reviewOffset, isBenchmark: task.isBenchmark, startedAt: date)
     }
 
     // MARK: Recording
 
-    /// Saves a finished game, adapts levels, and returns true if this completed today's session.
+    /// Most shinies free play can add in a day (the session itself is the main reward).
+    static let freePlayShinyCap = 5
+
+    /// Saves a finished game, adapts levels, and returns true if this completed the day's session.
+    /// A game belongs to the day it was started on, even if it ends after midnight.
     @discardableResult
     static func record(_ outcome: GameOutcome, ctx: GameContext, profile: Profile) -> Bool {
-        pinPlan(profile)
+        let day = ctx.startedAt
+        let calendar = Calendar.current
+        let now = Date()
+        let stamp = calendar.isDate(now, inSameDayAs: day) ? now
+            : calendar.date(bySettingHour: 23, minute: 59, second: 59, of: day) ?? day
+        if !ctx.isFreePlay { pinPlan(profile, date: day) }
         let session = TaskSession(task: ctx.task, correct: outcome.correct, total: outcome.total, meanRTms: outcome.meanRTms,
                                   score: outcome.score, level: outcome.level ?? ctx.size, seed: ctx.seed,
                                   courseDay: profile.courseDay, isBenchmark: ctx.isBenchmark,
-                                  palaceID: ctx.palaceID, reviewOffset: ctx.reviewOffset)
+                                  palaceID: ctx.palaceID, reviewOffset: ctx.reviewOffset, date: stamp)
+        session.isFreePlay = ctx.isFreePlay
+        session.prediction = outcome.prediction
+        session.secondsPerItem = outcome.secondsPerItem
         Store.context.insert(session)
 
         switch ctx.task {
@@ -262,61 +278,76 @@ enum Quest {
             if !outcome.trials.isEmpty { DifficultyStore.record(outcome.trials, for: ctx.task) }
         default: break
         }
-        if let id = ctx.palaceID, let palace = palaces().first(where: { $0.id == id }) { palace.lastUsed = Date() }
-        if ctx.task == .championTest, !Calendar.current.isDateInToday(profile.lastChampion ?? .distantPast) {
+        if let id = ctx.palaceID, let palace = palaces().first(where: { $0.id == id }) { palace.lastUsed = now }
+        if ctx.task == .championTest, !calendar.isDate(profile.lastChampion ?? .distantPast, inSameDayAs: day) {
             profile.championCount += 1
-            profile.lastChampion = Date()
+            profile.lastChampion = stamp
         }
-        profile.shinies += 1
+        if ctx.isFreePlay {
+            let earned = sessions(on: day).filter(\.isFreePlay).count - 1   // this one is already inserted
+            if earned < freePlayShinyCap { profile.shinies += 1 }
+        } else {
+            profile.shinies += 1
+        }
 
         if ctx.isBenchmark {
             let battery: Set<RealmTask> = [.wordRecall, .digitSpan]
-            let doneToday = Set(sessions().filter(\.isBenchmark).map(\.task)).union([ctx.task])
-            if battery.isSubset(of: doneToday), !Calendar.current.isDateInToday(profile.lastBenchmark ?? .distantPast) {
-                profile.lastBenchmark = Date()
+            let doneToday = Set(planSessions(on: day).filter(\.isBenchmark).map(\.task)).union([ctx.task])
+            if battery.isSubset(of: doneToday), !calendar.isDate(profile.lastBenchmark ?? .distantPast, inSameDayAs: day) {
+                profile.lastBenchmark = stamp
                 profile.benchmarkCount += 1
             }
         }
         Store.save()
-        advanceCourseIfDone(profile)
-        return refreshCompletion(profile)
+        if ctx.isFreePlay {
+            // Free play never ticks off plan steps or moves the course; just refresh the surfaces.
+            AppEvents.questChanged(profile: profile, justCompleted: false)
+            return false
+        }
+        advanceCourseIfDone(profile, date: day)
+        return refreshCompletion(profile, date: day)
     }
 
-    static func markLessonRead(_ id: String, profile: Profile) -> Bool {
-        pinPlan(profile)
+    static func markLessonRead(_ id: String, profile: Profile, date: Date = Date()) -> Bool {
+        pinPlan(profile, date: date)
         if !profile.lessonsRead.contains(id) { profile.lessonsRead.append(id) }
         Store.save()
-        advanceCourseIfDone(profile)
-        return refreshCompletion(profile)
+        advanceCourseIfDone(profile, date: date)
+        return refreshCompletion(profile, date: date)
     }
 
-    static func markVaultDone(profile: Profile) -> Bool {
-        pinPlan(profile)
-        Store.dayRecord().vaultDone = true
-        profile.shinies += 1
+    static func markVaultDone(profile: Profile, date: Date = Date()) -> Bool {
+        pinPlan(profile, date: date)
+        let record = Store.dayRecord(for: date)
+        if !record.vaultDone {
+            record.vaultDone = true
+            profile.shinies += 1
+        }
         Store.save()
-        return refreshCompletion(profile)
+        return refreshCompletion(profile, date: date)
     }
 
-    /// The course moves to the next day once today's lesson and drills are done — at most once a day.
-    static func advanceCourseIfDone(_ profile: Profile) {
-        guard !Calendar.current.isDateInToday(profile.lastCourseAdvance ?? .distantPast), !inBaseline(profile) else { return }
-        let course = courseDay(profile)
-        let today = sessions()
+    /// The course moves to the next day once the day's lesson and drills are done — at most once a day.
+    static func advanceCourseIfDone(_ profile: Profile, date: Date = Date()) {
+        let calendar = Calendar.current
+        guard !calendar.isDate(profile.lastCourseAdvance ?? .distantPast, inSameDayAs: date),
+              !inBaseline(profile, date: date) else { return }
+        let course = courseDay(profile, date: date)
+        let today = planSessions(on: date)
         let lessonDone = course.lesson.map { profile.lessonsRead.contains($0.id) } ?? true
         let drillsDone = course.drills.allSatisfy { d in today.contains { $0.task == task(for: d.kind) } }
         if lessonDone && drillsDone && profile.courseDay < Course.length {
             profile.courseDay += 1
-            profile.lastCourseAdvance = Date()
+            profile.lastCourseAdvance = date
             Store.save()
         }
     }
 
     /// Updates the day record and fires side effects. Returns true when the session *just* completed.
     @discardableResult
-    static func refreshCompletion(_ profile: Profile) -> Bool {
-        let s = steps(for: profile)
-        let record = Store.dayRecord()
+    static func refreshCompletion(_ profile: Profile, date: Date = Date()) -> Bool {
+        let s = steps(for: profile, date: date)
+        let record = Store.dayRecord(for: date)
         record.stepsTotal = s.count
         record.stepsDone = s.filter(\.done).count
         var justCompleted = false
@@ -376,10 +407,27 @@ enum AppEvents {
         }
     }
 
+    /// "Delete everything": stop every alarm, notification and Live Activity first (so nothing keeps
+    /// ringing for data that no longer exists), then wipe the store. RootView falls back to onboarding.
+    static func eraseEverything() {
+        AlarmService.cancelAll()
+        LiveActivityService.endAll()
+        Notifications.center.removeAllPendingNotificationRequests()
+        Notifications.center.removeAllDeliveredNotifications()
+        Store.deleteEverything()
+        SpotlightIndex.clear()
+        WidgetCenter.shared.reloadAllTimelines()
+        if #available(iOS 18.0, *) { ControlCenter.shared.reloadAllControls() }
+    }
+
     /// Called on launch / foreground.
     static func appBecameActive() {
         guard let profile = Store.profile(), profile.onboardingComplete else { return }
+        // Widgets and controls may have graded cards or ticked off reminders while we were away;
+        // refreshCompletion replans everything, so just clear the flag.
+        SharedStore.defaults?.removeObject(forKey: SharedStore.needsRefreshKey)
         _ = Quest.refreshCompletion(profile)
+        SpotlightIndex.refreshIfStale()
         Task { await CircleService.shared.reportToday(profile: profile) }
     }
 }

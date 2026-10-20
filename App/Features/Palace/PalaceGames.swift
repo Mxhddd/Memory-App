@@ -2,27 +2,39 @@ import SwiftUI
 import SwiftData
 import MemoryCore
 
-/// Countdown shown during encoding phases (soft limit: you can finish early).
+/// Countdown shown during encoding phases (soft limit: you can finish early). It runs on wall-clock
+/// time, so it keeps counting if the phone locks or you switch apps, and the Live Activity and
+/// Dynamic Island show the same countdown.
 struct EncodeTimer: View {
     @Environment(\.theme) private var theme
     let seconds: Int
+    var label: String = "Study time"
     let onTimeUp: () -> Void
-    @State private var remaining = 0
+    @State private var end: Date?
+    @State private var fired = false
 
     var body: some View {
-        Label(String(format: "%d:%02d", remaining / 60, remaining % 60), systemImage: "timer")
-            .font(theme.bodyEmphasis.monospacedDigit())
-            .foregroundStyle(remaining <= 10 ? theme.primary : theme.secondaryText)
-            .task {
-                remaining = seconds
-                while remaining > 0 {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    if Task.isCancelled { return }
-                    remaining -= 1
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let deadline = end ?? context.date.addingTimeInterval(Double(seconds))
+            let remaining = max(0, Int(deadline.timeIntervalSince(context.date).rounded(.up)))
+            Label(String(format: "%d:%02d", remaining / 60, remaining % 60), systemImage: "timer")
+                .font(theme.bodyEmphasis.monospacedDigit())
+                .foregroundStyle(remaining <= 10 ? theme.primary : theme.secondaryText)
+                .accessibilityLabel("\(remaining) seconds left")
+                .onChange(of: remaining) { _, left in
+                    guard left == 0, !fired, end != nil else { return }
+                    fired = true
+                    LiveActivityService.clearCountdown()
+                    onTimeUp()
                 }
-                onTimeUp()
-            }
-            .accessibilityLabel("\(remaining) seconds left")
+        }
+        .onAppear {
+            guard end == nil else { return }
+            let deadline = Date().addingTimeInterval(Double(seconds))
+            end = deadline
+            LiveActivityService.showCountdown(until: deadline, label: label)
+        }
+        .onDisappear { LiveActivityService.clearCountdown() }
     }
 }
 
@@ -230,10 +242,11 @@ struct RouteWalkGame: View {
     let palace: Palace
     let onFinish: (GameOutcome) -> Void
 
-    @State private var order: [String] = []
-    @State private var placed: [String] = []
+    /// Stops are tracked by position, so two stops with the same name never block the walk.
+    @State private var order: [Int] = []
+    @State private var placed: [Int] = []
     @State private var mistakes = 0
-    @State private var wrongFlash: String?
+    @State private var wrongFlash: Int?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -250,21 +263,22 @@ struct RouteWalkGame: View {
                           hideAhead: true, viewport: 200)
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(order.filter { !placed.contains($0) }, id: \.self) { stop in
-                        Button(stop) { tap(stop) }
-                            .buttonStyle(ChoiceButtonStyle(state: wrongFlash == stop ? .wrong : .idle))
+                    ForEach(order.filter { !placed.contains($0) }, id: \.self) { index in
+                        Button(palace.stops[index]) { tap(index) }
+                            .buttonStyle(ChoiceButtonStyle(state: wrongFlash == index ? .wrong : .idle))
                     }
                 }
             }
         }
         .padding()
-        .onAppear { order = palace.stops.shuffled() }
+        .onAppear { order = Array(palace.stops.indices).shuffled() }
     }
 
-    private func tap(_ stop: String) {
-        let expected = palace.stops[placed.count]
-        if stop == expected {
-            placed.append(stop)
+    private func tap(_ index: Int) {
+        guard placed.count < palace.stops.count else { return }
+        // A stop with the same name as the expected one counts too.
+        if palace.stops[index] == palace.stops[placed.count] {
+            placed.append(index)
             Haptic.tap()
             if placed.count == palace.stops.count {
                 let correct = max(0, palace.stops.count - mistakes)
@@ -273,7 +287,7 @@ struct RouteWalkGame: View {
             }
         } else {
             mistakes += 1
-            wrongFlash = stop
+            wrongFlash = index
             SFX.play(.gentle)
             Task { try? await Task.sleep(nanoseconds: 500_000_000); wrongFlash = nil }
         }

@@ -62,6 +62,8 @@ struct CircleView: View {
                 TextField("Your WhatsApp number, e.g. 923001234567", text: $profile.whatsappNumber)
                     .keyboardType(.phonePad)
                     .onSubmit { try? context.save(); sync() }
+                    // The phone keypad has no Return key, so also save when the number changes.
+                    .onChange(of: profile.whatsappNumber) { _, _ in try? context.save(); sync() }
             } header: {
                 Text("Cheer button")
             } footer: {

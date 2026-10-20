@@ -54,7 +54,7 @@ struct ProgressScreen: View {
         let atelier = theme.id == .gildedAtelier
         let next = RoomScene.next(atelier: atelier, stage: stage)
         return VStack(alignment: .leading, spacing: 10) {
-            Text("\(atelier ? "Your gallery" : "Your den") grows as you train: \(report.activeDays28) of 16 days in the last 4 weeks. "
+            Text("\(atelier ? "Your gallery" : "Your den") grows as you train: \(report.activeDays28) of 21 days in the last 4 weeks. "
                  + (next.map { "Next to arrive: \($0)." } ?? "Fully furnished — keep it that way."))
                 .font(theme.body).foregroundStyle(theme.text)
                 .fixedSize(horizontal: false, vertical: true)

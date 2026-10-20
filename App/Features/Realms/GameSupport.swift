@@ -13,6 +13,10 @@ struct GameOutcome {
     var level: Int? = nil
     /// Where an adaptive drill should start next time (n-back staircase).
     var nextLevel: Int? = nil
+    /// The player's own prediction before recall, if asked.
+    var prediction: Int? = nil
+    /// Average seconds spent studying each item (sprints).
+    var secondsPerItem: Double? = nil
 }
 
 /// Everything a game needs to know about this run.
@@ -27,6 +31,10 @@ struct GameContext {
     var championForm: Int = 0
     var reviewOffset: Int = 0
     var isBenchmark: Bool = false
+    /// The day this game belongs to (it was started then, even if it ends after midnight).
+    var startedAt: Date = Date()
+    /// Started from the Train tab rather than the day's plan.
+    var isFreePlay: Bool = false
 }
 
 /// Adaptive difficulty for training days: one Rasch ability per task, persisted locally.
