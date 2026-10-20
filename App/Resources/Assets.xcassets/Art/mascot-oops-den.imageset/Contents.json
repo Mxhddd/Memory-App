@@ -1,0 +1,27 @@
+{
+  "images": [
+    {
+      "filename": "mascot-oops-den@1x.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "mascot-oops-den@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "mascot-oops-den@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "preserves-vector-representation": false,
+    "template-rendering-intent": "original"
+  }
+}
