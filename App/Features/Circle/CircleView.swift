@@ -65,7 +65,7 @@ struct CircleView: View {
             } header: {
                 Text("Cheer button")
             } footer: {
-                Text("Supporters' alerts get a “Send a cheer 💌” button that opens WhatsApp to message you. Free — it uses their own WhatsApp. Include the country code, no +.")
+                Text("Supporters' alerts get a “Send a cheer” button that opens WhatsApp to message you. Free — it uses their own WhatsApp. Include the country code, no +.")
             }
             .listRowBackground(theme.surface)
 
@@ -166,7 +166,7 @@ struct SupporterInviteView: View {
     }
 
     private var shareText: String {
-        "Install the free ntfy app and subscribe to this to get a little ping when I practise in Memory Garden 🦝"
+        "Install the free ntfy app and subscribe to this to get a little ping when I practise in Memory Garden"
     }
 }
 

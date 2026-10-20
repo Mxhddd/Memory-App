@@ -125,7 +125,7 @@ struct DenWidgetView: View {
 
     private func questLine(_ s: WidgetSnapshot, _ theme: Theme) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(s.questComplete ? "Trained today ✨" : theme.copy.questTitle)
+            Text(s.questComplete ? "Trained today" : theme.copy.questTitle)
                 .font(.subheadline.weight(.bold)).foregroundStyle(theme.text).lineLimit(1)
             ProgressView(value: Double(s.questDone), total: Double(max(s.questTotal, 1)))
                 .tint(theme.primary)
@@ -164,13 +164,13 @@ struct LockScreenView: View {
             .gaugeStyle(.accessoryCircularCapacity)
         case .accessoryInline:
             if let text = s.nextIntentionText, let time = s.nextIntentionTime {
-                Text("🔔 \(text) \(time, style: .time)")
+                Text("\(Image(systemName: "bell.fill")) \(text) \(time, style: .time)")
             } else {
-                Text(s.questComplete ? "✨ Trained today" : "🌙 Training \(s.questDone)/\(s.questTotal)")
+                Text(s.questComplete ? "\(Image(systemName: "sparkles")) Trained today" : "\(Image(systemName: "moon.stars.fill")) Training \(s.questDone)/\(s.questTotal)")
             }
         default:
             VStack(alignment: .leading, spacing: 2) {
-                Text(s.questComplete ? "Trained ✨" : "Training \(s.questDone)/\(s.questTotal)").font(.headline)
+                Text(s.questComplete ? "Trained" : "Training \(s.questDone)/\(s.questTotal)").font(.headline)
                 if let text = s.nextIntentionText, let time = s.nextIntentionTime {
                     Text("\(text) · \(time, style: .time)").font(.caption).lineLimit(1)
                 } else if s.dueCards > 0 {

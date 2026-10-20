@@ -143,7 +143,7 @@ struct GameHost: View {
                 .font(theme.bodyEmphasis)
                 .foregroundStyle(theme.ornament)
             Spacer()
-            Button(completed ? "Finish session ✨" : "Back") { onClose(completed) }
+            Button(completed ? "Finish session" : "Back") { onClose(completed) }
                 .buttonStyle(PrimaryButtonStyle())
         }
         .padding(24)

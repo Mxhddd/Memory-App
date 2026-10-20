@@ -38,7 +38,13 @@ struct SequencesGame: View {
                         RoundedRectangle(cornerRadius: theme.cornerRadius)
                             .fill(cellColor(cell))
                             .aspectRatio(1, contentMode: .fit)
-                            .overlay(Text(lit == cell ? (theme.id == .midnightRaccoon ? "✨" : "★") : "").font(.system(size: 30)))
+                            .overlay {
+                                if lit == cell {
+                                    Image(systemName: theme.id == .midnightRaccoon ? "sparkle" : "star.fill")
+                                        .font(.system(size: 28, weight: .bold))
+                                        .foregroundStyle(theme.id == .midnightRaccoon ? Color(hex: 0x17121F) : theme.onPrimary)
+                                }
+                            }
                             .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius).strokeBorder(theme.outline.opacity(0.7), lineWidth: theme.pixelBorders ? 3 : 1))
                     }
                     .disabled(showing)
@@ -50,7 +56,7 @@ struct SequencesGame: View {
         .padding()
         .task {
             rng = SeededRandom(ctx.seed)
-            span = 2 + ctx.level
+            span = ctx.size > 1 ? ctx.size : 2 + ctx.level // resume from the last session's span
             await play()
         }
     }
@@ -100,7 +106,7 @@ struct SequencesGame: View {
             span = ok ? min(span + 1, side * side) : max(2, span - 1)
             if trial >= trialsTotal {
                 onFinish(GameOutcome(correct: correctTrials, total: trialsTotal, meanRTms: 0,
-                                     score: Double(maxSpan) / 9, trials: trials))
+                                     score: Double(maxSpan) / 9, trials: trials, level: maxSpan, nextLevel: span))
             } else {
                 await play()
             }
@@ -136,7 +142,7 @@ struct StashGame: View {
             } else if t < order.count {
                 let p = placements[order[t]]
                 GameHeader(title: "Where is the \(p.name)?", progress: (t, order.count))
-                Text(p.emoji).font(.system(size: 64)).accessibilityLabel(p.name)
+                StashItemView(placement: p, size: 72).accessibilityLabel(p.name)
             }
             Spacer(minLength: 0)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: side), spacing: 8) {
@@ -145,10 +151,10 @@ struct StashGame: View {
                         ZStack {
                             RoundedRectangle(cornerRadius: theme.cornerRadius).fill(fill(cell))
                             if studying, let p = placements.first(where: { $0.cell == cell }) {
-                                Text(p.emoji).font(.system(size: 34))
+                                StashItemView(placement: p, size: 44)
                             }
                             if !studying, picked != nil, t < order.count, placements[order[t]].cell == cell {
-                                Text(placements[order[t]].emoji).font(.system(size: 34))
+                                StashItemView(placement: placements[order[t]], size: 44)
                             }
                         }
                         .aspectRatio(1, contentMode: .fit)
@@ -201,6 +207,20 @@ struct StashGame: View {
                                      score: Double(correct) / Double(max(order.count, 1)),
                                      trials: Array(repeating: (d, true), count: correct) + Array(repeating: (d, false), count: order.count - correct)))
             }
+        }
+    }
+}
+
+/// Pixel sprite for a stash object (falls back to the emoji if a sprite is missing).
+struct StashItemView: View {
+    let placement: Stimuli.Placement
+    var size: CGFloat = 44
+
+    var body: some View {
+        if let art = Sprites.stashItems[placement.name] {
+            PixelSpriteView(art: art).frame(width: size, height: size)
+        } else {
+            Text(placement.emoji).font(.system(size: size * 0.75))
         }
     }
 }

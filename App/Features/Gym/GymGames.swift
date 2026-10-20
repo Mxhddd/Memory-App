@@ -94,7 +94,7 @@ struct DualNBackGame: View {
             hits += score.hits
             targets += score.targets
             let next = NBack.nextLevel(current: n, score: score)
-            between = "\(score.hits)/\(score.targets) caught\n" + (next > n ? "Level up → \(next)-back ✨" : next < n ? "Easing to \(next)-back" : "Staying at \(n)-back")
+            between = "\(score.hits)/\(score.targets) caught\n" + (next > n ? "Level up → \(next)-back" : next < n ? "Easing to \(next)-back" : "Staying at \(n)-back")
             SFX.play(next > n ? .levelup : .correct)
             try? await Task.sleep(nanoseconds: 2_200_000_000)
             n = next

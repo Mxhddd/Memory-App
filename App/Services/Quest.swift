@@ -65,8 +65,16 @@ enum Quest {
 
     // MARK: Plan
 
-    static func courseDay(_ profile: Profile) -> CourseDay {
-        Course.day(profile.courseDay, wordLevel: profile.wordLevel, digitLevel: profile.digitLevel)
+    /// Today's course day: pinned to the day the session started on (see `DayRecord.planCourseDay`).
+    static func courseDay(_ profile: Profile, date: Date = Date()) -> CourseDay {
+        let day = Store.dayRecord(for: date).planCourseDay ?? profile.courseDay
+        return Course.day(day, wordLevel: profile.wordLevel, digitLevel: profile.digitLevel)
+    }
+
+    /// Fixes today's plan to the current course day the first time anything is done today.
+    static func pinPlan(_ profile: Profile) {
+        let record = Store.dayRecord()
+        if record.planCourseDay == nil { record.planCourseDay = profile.courseDay }
     }
 
     static func isGymDay(_ profile: Profile, date: Date = Date()) -> Bool {
@@ -98,7 +106,7 @@ enum Quest {
             steps.append(QuestStep(kind: .task(.digitSpan, size: 3), done: done(.digitSpan), isBenchmark: true))
         }
 
-        let course = courseDay(profile)
+        let course = courseDay(profile, date: date)
         if let lesson = course.lesson {
             steps.append(QuestStep(kind: .lesson(lesson.id), done: profile.lessonsRead.contains(lesson.id)))
         }
@@ -137,6 +145,7 @@ enum Quest {
         if task == .wordRecall { seed = "benchmark" } // fixed forms; the form index rotates
         if task == .sprintRetention, let s = yesterdaysSprint() { seed = s.seed }
         let level = task.domain == .associative ? DifficultyStore.level(for: task) : 2
+        let size = task == .sequences ? profile.sequenceSpan : size
         let palace = [.wordSprint, .sprintRetention, .routeWalk].contains(task) ? palace(forItems: size) : nil
         return GameContext(task: task, seed: seed, size: size, level: level, courseDay: profile.courseDay,
                            palaceID: palace?.id, benchmarkForm: BenchmarkPlanner.form(forSession: profile.benchmarkCount),
@@ -148,6 +157,7 @@ enum Quest {
     /// Saves a finished game, adapts levels, and returns true if this completed today's session.
     @discardableResult
     static func record(_ outcome: GameOutcome, ctx: GameContext, profile: Profile) -> Bool {
+        pinPlan(profile)
         let session = TaskSession(task: ctx.task, correct: outcome.correct, total: outcome.total, meanRTms: outcome.meanRTms,
                                   score: outcome.score, level: outcome.level ?? ctx.size, seed: ctx.seed,
                                   courseDay: profile.courseDay, isBenchmark: ctx.isBenchmark)
@@ -160,7 +170,10 @@ enum Quest {
             profile.digitLevel = Course.nextDigitLevel(current: max(profile.digitLevel, ctx.size), accuracy: outcome.score)
         case .dualNBack:
             if let next = outcome.nextLevel { profile.nBackLevel = next }
-        case .faceName, .ancientRunes, .stash, .sequences:
+        case .sequences:
+            if let next = outcome.nextLevel { profile.sequenceSpan = max(2, next) }
+            if !outcome.trials.isEmpty { DifficultyStore.record(outcome.trials, for: ctx.task) }
+        case .faceName, .ancientRunes, .stash:
             if !outcome.trials.isEmpty { DifficultyStore.record(outcome.trials, for: ctx.task) }
         default: break
         }
@@ -181,6 +194,7 @@ enum Quest {
     }
 
     static func markLessonRead(_ id: String, profile: Profile) -> Bool {
+        pinPlan(profile)
         if !profile.lessonsRead.contains(id) { profile.lessonsRead.append(id) }
         Store.save()
         advanceCourseIfDone(profile)
@@ -188,6 +202,7 @@ enum Quest {
     }
 
     static func markVaultDone(profile: Profile) -> Bool {
+        pinPlan(profile)
         Store.dayRecord().vaultDone = true
         profile.shinies += 1
         Store.save()

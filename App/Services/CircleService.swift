@@ -192,10 +192,10 @@ final class CircleService {
         let name = profile.displayName.isEmpty ? profile.mascotName : profile.displayName
         let raccoon = profile.theme == .midnightRaccoon
         return NtfyMessage(
-            title: raccoon ? "✨ \(name)'s den got cozier today" : "\(name) finished today's practice",
+            title: raccoon ? "\(name)'s den got cozier today" : "\(name) finished today's practice",
             body: raccoon ? "Quest complete! Send a little cheer?" : "All done for today. A kind word goes a long way.",
             tags: [raccoon ? "raccoon" : "sparkles"],
-            actions: nudgeAction(profile: profile, text: raccoon ? "Proud of you and \(profile.mascotName) 💜" : "Well done today! 🌷", label: "Send a cheer 💌")
+            actions: nudgeAction(profile: profile, text: raccoon ? "Proud of you and \(profile.mascotName)" : "Well done today!", label: "Send a cheer")
         )
     }
 
@@ -220,10 +220,10 @@ final class CircleService {
     }
 
     func sendTest(to supporter: Supporter, profile: Profile) async -> Bool {
-        let msg = NtfyMessage(title: "👋 Test from Memory Garden",
+        let msg = NtfyMessage(title: "Test from Memory Garden",
                               body: "You're subscribed! You'll get completion-only updates for \(profile.displayName.isEmpty ? profile.mascotName : profile.displayName).",
                               tags: ["tada"],
-                              actions: nudgeAction(profile: profile, text: "Got your test alert! 💜", label: "Say hi on WhatsApp"))
+                              actions: nudgeAction(profile: profile, text: "Got your test alert!", label: "Say hi on WhatsApp"))
         return (try? await publish(topic: supporter.topic, message: msg)) != nil
     }
 

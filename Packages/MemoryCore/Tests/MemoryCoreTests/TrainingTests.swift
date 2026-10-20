@@ -174,3 +174,14 @@ final class VaultImportTests: XCTestCase {
         XCTAssertEqual(VaultImport.capitals.count, 30)
     }
 }
+
+final class SpriteTests: XCTestCase {
+    func testEveryStashItemHasASprite() {
+        for (_, name) in Stimuli.stashItems {
+            guard let art = Sprites.stashItems[name] else { return XCTFail("no sprite for \(name)") }
+            XCTAssertEqual(art.width, 12, name)
+            XCTAssertEqual(art.height, 12, name)
+            for row in art.rows { for ch in row where ch != "." { XCTAssertNotNil(art.palette[ch], "\(name): colour \(ch)") } }
+        }
+    }
+}

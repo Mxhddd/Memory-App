@@ -27,6 +27,8 @@ final class Profile {
 
     // Working-memory gym
     var nBackLevel: Int = 2
+    /// Starting length for Sequences next time (adaptive span carries over between sessions).
+    var sequenceSpan: Int = 4
     var showNBackLetters: Bool = false
 
     // Benchmarks
@@ -265,6 +267,9 @@ final class DayRecord {
     var stepsDone: Int = 0
     var stepsTotal: Int = 0
     var completedAt: Date?
+    /// Course day today's plan was built from. Pinned at the first activity so that advancing the
+    /// course mid-day doesn't pull tomorrow's lesson and drills into today's session.
+    var planCourseDay: Int?
 
     init(day: Date) {
         self.day = Calendar.current.startOfDay(for: day)

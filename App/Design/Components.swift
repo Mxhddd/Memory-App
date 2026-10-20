@@ -54,9 +54,9 @@ struct ThemedCard: ViewModifier {
                     .strokeBorder(theme.pixelBorders ? theme.outline : theme.ornament.opacity(0.45),
                                   lineWidth: theme.pixelBorders ? 3 : 1)
             )
-            .shadow(color: theme.pixelBorders ? theme.outline.opacity(0.9) : .black.opacity(0.06),
-                    radius: theme.pixelBorders ? 0 : 8,
-                    x: theme.pixelBorders ? 3 : 0, y: theme.pixelBorders ? 3 : 3)
+            .shadow(color: theme.pixelBorders ? theme.outline : Color(hex: 0x1E2A44).opacity(0.07),
+                    radius: theme.pixelBorders ? 0 : 13,
+                    x: theme.pixelBorders ? 4 : 0, y: theme.pixelBorders ? 4 : 10)
     }
 }
 

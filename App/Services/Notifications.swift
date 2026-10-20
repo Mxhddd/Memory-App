@@ -67,7 +67,7 @@ enum Notifications {
             if profile.eveningNudge, offset < 7, profile.reminderHour < 20,
                let at = calendar.date(bySettingHour: 20, minute: 45, second: 0, of: day), at > now {
                 let c = UNMutableNotificationContent()
-                c.title = theme.id == .midnightRaccoon ? "\(theme.copy.eveningSession)? 🌙" : "A quiet moment for practice?"
+                c.title = theme.id == .midnightRaccoon ? "\(theme.copy.eveningSession)?" : "A quiet moment for practice?"
                 c.body = theme.id == .midnightRaccoon ? "\(profile.mascotName) saved you a spot in the den. Train before bed — sleep locks it in." : "Your training is ready whenever you are."
                 c.sound = .default
                 c.categoryIdentifier = Category.quest.rawValue
@@ -119,7 +119,7 @@ enum Notifications {
     private static func questContent(profile: Profile, theme: Theme, missYou: Bool) -> UNMutableNotificationContent {
         let c = UNMutableNotificationContent()
         if theme.id == .midnightRaccoon {
-            c.title = missYou ? "\(profile.mascotName) misses you 🦝" : "\(profile.mascotName) is waiting in the den ✨"
+            c.title = missYou ? "\(profile.mascotName) misses you" : "\(profile.mascotName) is waiting in the den"
             c.body = missYou ? "Your course picks up exactly where you left off." : "\(theme.copy.questTitle) is ready — about \(profile.dailyMinutes) minutes."
         } else {
             c.title = missYou ? "Welcome back whenever you're ready" : "Today's training is ready"

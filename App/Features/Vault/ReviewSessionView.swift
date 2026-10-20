@@ -131,7 +131,7 @@ struct ReviewSessionView: View {
                 Divider().overlay(theme.ornament)
                 Text(c.answer).font(theme.display(28)).foregroundStyle(theme.primary).multilineTextAlignment(.center)
                 if !c.hint.isEmpty {
-                    Text("💡 \(c.hint)").font(theme.caption).foregroundStyle(theme.secondaryText).multilineTextAlignment(.center)
+                    Text("\(Image(systemName: "lightbulb")) \(c.hint)").font(theme.caption).foregroundStyle(theme.secondaryText).multilineTextAlignment(.center)
                 }
             }
         }

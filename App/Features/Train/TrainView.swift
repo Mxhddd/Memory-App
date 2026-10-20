@@ -36,7 +36,7 @@ struct TrainView: View {
             Section {
                 drill(.dualNBack, size: profile.nBackLevel, detail: "Level \(profile.nBackLevel)")
                 drill(.complexSpan, size: 0, detail: "Letters + sums")
-                drill(.sequences, size: 0, detail: "Spatial span")
+                drill(.sequences, size: 0, detail: "Span \(profile.sequenceSpan)")
             } header: {
                 Text("Working-memory gym")
             } footer: {
