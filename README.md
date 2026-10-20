@@ -11,19 +11,25 @@ A native iPhone app (SwiftUI) that **trains memory the way memory champions do**
 - **Two looks.** *Midnight Den* (cute-goth, Mochi the raccoon) and *Gilded Atelier* (ivory and brass), each with a room that furnishes itself as you train, a walkable palace map and its own sounds.
 - **Reminders** you set yourself, which can keep nudging until you tap Done or ring like an alarm on iOS 26. Supporters get "trained today" pings through the free ntfy app.
 
-**Cost: $0, and no Mac is needed.** GitHub builds the app in the cloud, and the phones install it with SideStore from a Windows laptop. → **[docs/INSTALL.md](docs/INSTALL.md)**
+- **Native iPhone extras, all free:** interactive widgets (answer a flashcard on the Home or Lock Screen), a Live Activity with a study countdown in the Dynamic Island, Control Center buttons, Siri and Shortcuts, answering a card from a notification, Spotlight and quick actions.
+- **Science that adapts to you:** after 50 reviews the Vault fits FSRS to how *you* forget and suggests the most efficient target; you guess your score before recall to train metamemory; the study clock tightens only once accuracy holds.
+
+**Cost: $0, and no Mac is needed.** GitHub builds the app in the cloud, and the phones install it with SideStore from a Windows laptop.
+→ **Install guide: https://mxhddd.github.io/Memory-App/** (also in [docs/INSTALL.md](docs/INSTALL.md)). There is no free App Store or TestFlight route; both need Apple's paid program.
 
 <img src="distribution/icon.png" width="96" alt="Mochi app icon">
 
 ## What's inside
 ```
 App/                SwiftUI app: Today, Train (course, palaces, gym, arcade), Vault, Progress, Reminders
-Widgets/            The single extension: Home/Lock Screen widgets + Live Activity
-Shared/             App Group snapshot, Live Activity attributes
+Widgets/            The single extension: widgets, Control Center controls, Live Activity
+Shared/             App Group store + snapshot, shared intents, Live Activity attributes, signing info
 Packages/MemoryCore Pure-Swift engine: FSRS-6, course, Major system, n-back, spans, benchmarks… + tests
 backend/supabase/   Optional free server: Postgres → ntfy pings ("trained", "not yet", weekly)
-distribution/       build-ipa.sh (used by CI), SideStore source template, icon
-.github/workflows/  core-tests (Linux) and build-ipa (macOS: compile check + releases)
+distribution/       build-ipa.sh (used by CI), SideStore source generator, release notes, icon,
+                    windows/ (laptop setup helper)
+site/               The install guide (GitHub Pages)
+.github/workflows/  core-tests (Linux), build-ipa (macOS: compile check + releases), site (install guide)
 docs/               INSTALL (Windows-first), PRIVACY, DESIGN
 ```
 

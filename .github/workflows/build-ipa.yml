@@ -2,20 +2,22 @@ name: Build iOS app
 
 # Builds an unsigned MemoryGarden.ipa on a GitHub-hosted Mac (no Mac needed at home).
 #  * push to an app path  → compile check + IPA artifact
-#  * tag v1.2.3           → also publishes to the public releases repo for SideStore
+#  * tag v1.2.3           → also publishes a GitHub release in this repo with the IPA, the
+#                           SideStore source (stable link: releases/latest/download/sidestore-source.json),
+#                           the icon and the Windows setup helper. Uses the built-in token: no secrets.
 on:
   push:
     branches: ["**"]
     tags: ["v*"]
-    paths: ["App/**", "Widgets/**", "Shared/**", "Packages/**", "project.yml", "distribution/**", ".github/workflows/build-ipa.yml"]
+    paths: ["App/**", "Widgets/**", "Shared/**", "Packages/MemoryCore/**", "project.yml", "distribution/**", ".github/workflows/build-ipa.yml"]
   workflow_dispatch:
 
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  RELEASES_REPO: mxhddd/memory-garden-releases
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -48,27 +50,58 @@ jobs:
           MG_BUILD: ${{ github.run_number }}
         run: ./distribution/build-ipa.sh
 
+      - name: Show what the app asks for
+        run: |
+          APP=build/MemoryGarden.xcarchive/Products/Applications/MemoryGarden.app
+          EXE=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$APP/Info.plist")
+          ldid -e "$APP/$EXE" > build/app-entitlements.plist
+          echo "App entitlements:"; cat build/app-entitlements.plist
+          echo "Widget entitlements:"; ldid -e "$APP/PlugIns/MemoryGardenWidgets.appex/MemoryGardenWidgets"
+          if grep -q "time-sensitive\|aps-environment\|com.apple.developer.siri\|icloud" build/app-entitlements.plist; then
+            echo "::error::The app asks for an entitlement a free Apple ID can't grant"; exit 1
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: MemoryGarden-${{ steps.v.outputs.version }}
           path: build/MemoryGarden.ipa
           retention-days: 14
 
-      - name: Publish to releases repo
+      - name: Publish the release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.v.outputs.version }}
         run: |
-          if [ -z "$GH_TOKEN" ]; then echo "::error::Add the RELEASES_TOKEN secret (see docs/INSTALL.md)"; exit 1; fi
-          gh release create "v$VERSION" build/MemoryGarden.ipa --repo "$RELEASES_REPO" --title "Memory Garden $VERSION" --notes "Install or update from SideStore."
-          git clone "https://x-access-token:$GH_TOKEN@github.com/$RELEASES_REPO.git" releases
-          SIZE=$(stat -f%z build/MemoryGarden.ipa)
-          python3 distribution/update_source.py distribution/sidestore-source.json releases/sidestore-source.json \
-            "$VERSION" "$GITHUB_RUN_NUMBER" "$SIZE" "https://github.com/$RELEASES_REPO/releases/download/v$VERSION/MemoryGarden.ipa" \
-            "https://raw.githubusercontent.com/$RELEASES_REPO/main/icon.png"
-          cp distribution/icon.png releases/icon.png
-          cd releases
-          git config user.name "memory-garden-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A && git commit -m "Memory Garden $VERSION" && git push
+          set -euo pipefail
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases"
+          APP=build/MemoryGarden.xcarchive/Products/Applications/MemoryGarden.app
+          # Keep earlier versions in the source's history (none yet on the first release).
+          curl -fsSL "$BASE/latest/download/sidestore-source.json" -o build/previous-source.json || echo "No earlier source"
+          python3 distribution/update_source.py --template distribution/sidestore-source.json \
+            --previous build/previous-source.json --out build/sidestore-source.json \
+            --version "$VERSION" --build "$GITHUB_RUN_NUMBER" --ipa build/MemoryGarden.ipa \
+            --ipa-url "$BASE/download/v$VERSION/MemoryGarden.ipa" --icon-url "$BASE/latest/download/icon.png" \
+            --info-plist "$APP/Info.plist" --entitlements build/app-entitlements.plist \
+            --notes "$(head -1 distribution/release-notes.md | sed 's/^# *//')"
+          cp distribution/icon.png build/icon.png
+          (cd distribution/windows && zip -q ../../build/MemoryGarden-Windows-Setup.zip Setup-MemoryGarden.cmd Setup-MemoryGarden.ps1)
+          ASSETS="build/MemoryGarden.ipa build/sidestore-source.json build/icon.png build/MemoryGarden-Windows-Setup.zip"
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" $ASSETS --repo "$GITHUB_REPOSITORY" --clobber   # re-run: replace the files
+          else
+            gh release create "v$VERSION" $ASSETS --repo "$GITHUB_REPOSITORY" --title "Memory Garden $VERSION" \
+              --notes-file distribution/release-notes.md --latest
+          fi
+
+      - name: Check the download links
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases"
+          for url in "$BASE/latest/download/sidestore-source.json" "$BASE/latest/download/icon.png" "$BASE/download/v$VERSION/MemoryGarden.ipa"; do
+            code=$(curl -sIL -o /dev/null -w '%{http_code}' "$url"); echo "$code $url"
+            [ "$code" = "200" ] || { echo "::error::$url answered $code"; exit 1; }
+          done
+          curl -fsSL "$BASE/latest/download/sidestore-source.json" | python3 -c "import json,sys; d=json.load(sys.stdin); v=d['apps'][0]['versions'][0]; assert v['version']=='$VERSION', v; print('Source serves', v['version'])"

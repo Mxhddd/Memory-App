@@ -54,5 +54,5 @@ rm -rf build/Payload
 SIZE=$(stat -f%z build/MemoryGarden.ipa)
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist")
 echo "✅ build/MemoryGarden.ipa  (version $VERSION, $SIZE bytes)"
-echo "   AirDrop it to the phone → Share → SideStore, or see docs/INSTALL.md."
-echo "   For one-tap updates, bump 'version'/'size' in distribution/sidestore-source.json."
+echo "   Releases: push a tag (git tag v$VERSION && git push origin v$VERSION) and CI publishes it."
+echo "   Installing: docs/INSTALL.md or https://mxhddd.github.io/Memory-App/"

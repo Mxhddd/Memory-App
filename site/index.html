@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Install Memory Garden</title>
+<meta name="description" content="Put Memory Garden on an iPhone for free, step by step: a Windows laptop, iloader and SideStore.">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Pixelify+Sans:wght@600&display=swap" rel="stylesheet">
+<style>
+  /* Two looks, as in the app: Midnight Den (MaoMao) and Gilded Atelier (Salma). */
+  :root, [data-look="den"] {
+    --bg: #17121F; --bg-top: #2A2042; --surface: #241D31; --raised: #2F2640;
+    --primary: #F4A7C6; --on-primary: #17121F; --text: #FFF4D6; --muted: #CFC3E6;
+    --ornament: #FFE08A; --success: #9FE3C8; --danger: #FF8FA3; --line: rgba(207,195,230,.22);
+    --display: "Pixelify Sans", ui-monospace, Menlo, monospace; --radius: 6px; --shadow: none;
+    color-scheme: dark;
+  }
+  [data-look="atelier"] {
+    --bg: #F7F1E3; --bg-top: #EFE6D0; --surface: #FFFBF2; --raised: #F1E8D4;
+    --primary: #1F5C4A; --on-primary: #FFFBF2; --text: #1E2A44; --muted: #4A5368;
+    --ornament: #7A5C17; --success: #1F5C4A; --danger: #A8442F; --line: rgba(30,42,68,.14);
+    --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --radius: 22px;
+    --shadow: 0 12px 30px rgba(30,42,68,.08);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    margin: 0; color: var(--text); background: var(--bg);
+    background-image: linear-gradient(var(--bg-top), var(--bg) 520px);
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  [data-look="atelier"] body { font-size: 19px; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.15; margin: 0; }
+  h1 { font-size: clamp(36px, 8vw, 54px); }
+  h2 { font-size: clamp(28px, 6vw, 36px); margin-top: 8px; }
+  h3 { font-size: 24px; }
+  [data-look="atelier"] h3 { font-size: 27px; }
+  a { color: var(--primary); }
+  p { margin: 8px 0; }
+  .kicker { font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--ornament); }
+  .muted { color: var(--muted); }
+  .hero { display: flex; gap: 18px; align-items: center; margin-bottom: 18px; }
+  .hero img { width: 84px; height: 84px; border-radius: 20px; image-rendering: pixelated; flex: none; }
+  .who { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 20px 0 8px; }
+  .who button {
+    font: inherit; font-weight: 700; padding: 14px 10px; min-height: 52px; cursor: pointer;
+    border: 2px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text);
+  }
+  .who button[aria-pressed="true"] { border-color: var(--primary); background: var(--raised); }
+  .card { background: var(--surface); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); margin: 14px 0; }
+  .card.raised { background: var(--raised); }
+  .need { margin: 0; padding-left: 20px; }
+  .need li { margin: 4px 0; }
+  section { margin-top: 44px; scroll-margin-top: 12px; }
+  .part { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .chip { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--ornament) 16%, transparent); color: var(--ornament); }
+  ol.steps { list-style: none; padding: 0; margin: 18px 0 0; counter-reset: s var(--start, 0); }
+  ol.steps > li { counter-increment: s; position: relative; padding: 0 0 26px 62px; }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: -2px; width: 44px; height: 44px; display: grid; place-items: center;
+    font-family: var(--display); font-size: 24px; color: var(--on-primary); background: var(--primary); border-radius: var(--radius);
+  }
+  [data-look="atelier"] ol.steps > li::before { border-radius: 50%; }
+  ol.steps > li::after { content: ""; position: absolute; left: 21px; top: 50px; bottom: 6px; width: 2px; background: var(--line); }
+  ol.steps > li:last-child::after { display: none; }
+  .path { font-weight: 700; }
+  .path span { color: var(--muted); font-weight: 400; padding: 0 4px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 12px 20px;
+    font: inherit; font-weight: 800; text-decoration: none; cursor: pointer; border: 0; border-radius: var(--radius);
+    background: var(--primary); color: var(--on-primary); margin: 8px 8px 0 0;
+  }
+  [data-look="atelier"] .btn { border-radius: 999px; }
+  .btn.secondary { background: var(--raised); color: var(--text); border: 2px solid var(--line); }
+  .btn.big { width: 100%; font-size: 19px; min-height: 60px; }
+  .note { border-left: 4px solid var(--ornament); padding: 10px 14px; background: var(--raised); border-radius: 0 var(--radius) var(--radius) 0; margin: 12px 0; }
+  .warn { border-left-color: var(--danger); }
+  .qr { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .qr img { width: 168px; height: 168px; background: #fff; padding: 6px; border-radius: 10px; flex: none; }
+  .qr div { flex: 1 1 220px; }
+  code, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: .95em; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 8px; border-top: 1px solid var(--line); }
+  th { width: 40%; font-weight: 700; }
+  details { border-top: 1px solid var(--line); padding: 10px 0; }
+  details summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+  .only-phone, .only-laptop { display: none; }
+  [data-device="phone"] .only-phone, [data-device="laptop"] .only-laptop { display: block; }
+  [data-device="laptop"] .only-laptop.qr { display: flex; }
+  @media (max-width: 560px) {
+    table, tbody, tr, th, td { display: block; width: auto; }
+    th { border-top: 1px solid var(--line); padding-bottom: 2px; }
+    td { border-top: 0; padding-top: 0; }
+  }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 999px; font-weight: 700; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  footer { margin-top: 48px; font-size: 14px; }
+  .printonly { display: none; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .toast { transition: none; } }
+  @media print {
+    body { background: #fff; color: #000; font-size: 12pt; }
+    .who, .btn, .qr, .toast, .noprint, footer { display: none !important; }
+    .only-phone, .only-laptop { display: block !important; }
+    .card, .note { box-shadow: none; background: #fff; border: 1px solid #999; }
+    ol.steps > li::before { background: #fff; color: #000; border: 2px solid #000; }
+    ol.steps > li { break-inside: avoid; padding-bottom: 14px; }
+    .printonly { display: inline; }
+    section { margin-top: 20px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <img src="icon.png" alt="">
+    <div>
+      <div class="kicker">Free · about 30 minutes, once</div>
+      <h1>Install Memory Garden</h1>
+      <p class="muted" id="for-line">Step by step, for MaoMao's iPhone.</p>
+    </div>
+  </header>
+
+  <div class="who noprint" role="group" aria-label="Whose iPhone is this?">
+    <button type="button" data-for="maomao" aria-pressed="true">🦝 MaoMao's iPhone</button>
+    <button type="button" data-for="salma" aria-pressed="false">✒️ Salma's iPhone</button>
+  </div>
+
+  <div class="card only-phone noprint">
+    <strong>You're on an iPhone.</strong> If SideStore is already on this phone, jump to <a href="#add">step 7: add Memory Garden</a>. Otherwise the first part happens on the laptop.
+  </div>
+
+  <div class="card">
+    <h3>What you need</h3>
+    <ul class="need">
+      <li>The <strong>Windows laptop</strong> (64-bit Windows 10 or 11) and the iPhone's <strong>cable</strong>.</li>
+      <li>The <strong>iPhone</strong> on iOS 18 or newer, with a <strong>passcode</strong> set (Settings → Face ID &amp; Passcode).</li>
+      <li><strong>Wi-Fi</strong> on the phone. Mobile data isn't enough for SideStore.</li>
+      <li>An <strong>Apple ID for this phone</strong> (free). <span id="appleid-tip">A separate one per phone is best: make one at <a href="https://account.apple.com/account">account.apple.com</a>, write the email and password down, and keep the phone it texts codes to nearby.</span></li>
+    </ul>
+  </div>
+
+  <!-- ───────── Part 1: laptop ───────── -->
+  <section id="laptop" aria-labelledby="laptop-h">
+    <div class="part"><span class="chip">Part 1 · on the laptop</span></div>
+    <h2 id="laptop-h">Put SideStore on the iPhone</h2>
+    <p class="muted">SideStore is the free app that installs and refreshes Memory Garden. The laptop is only needed this once.</p>
+
+    <ol class="steps">
+      <li>
+        <h3>Get the laptop ready</h3>
+        <p>Download the helper, open the zip, and double-click <strong>Setup-MemoryGarden</strong>. It installs Apple's iPhone driver (iTunes, from apple.com) and <strong>iloader</strong>, then brings you back here.</p>
+        <a class="btn" href="https://github.com/Mxhddd/Memory-App/releases/latest/download/MemoryGarden-Windows-Setup.zip">⬇ Download the laptop helper</a>
+        <div class="note">If Windows says <em>“Windows protected your PC”</em>, click <strong>More info → Run anyway</strong>. The helper only downloads from Apple and from iloader's official page.</div>
+        <details>
+          <summary>Rather do it by hand?</summary>
+          <p>1. Install <a href="https://www.apple.com/itunes/download/win64">iTunes from Apple's website</a> (not the Microsoft Store version — Apple's includes the iPhone driver).<br>
+          2. Install <a href="https://github.com/nab138/iloader/releases/latest/download/iloader-windows-x64.msi">iloader</a> (official page: <a href="https://iloader.app">iloader.app</a>).</p>
+        </details>
+      </li>
+      <li>
+        <h3>Plug in the iPhone</h3>
+        <p>Unlock the iPhone and plug it into the laptop. On the phone, tap <strong>Trust</strong> and enter the passcode.</p>
+      </li>
+      <li>
+        <h3>Install SideStore with iloader</h3>
+        <p>Open <strong>iloader</strong> from the Start menu, then:</p>
+        <p class="path">Sign in with the Apple ID <span>→</span> pick the iPhone <span>→</span> Install SideStore (Stable)</p>
+        <p class="muted">The email is case-sensitive. If a code appears on a phone, type it into iloader. Wait for “done”, then unplug.</p>
+      </li>
+    </ol>
+
+    <div class="card raised only-laptop qr">
+      <img src="qr-guide.svg" alt="QR code that opens this guide on the iPhone">
+      <div>
+        <h3>Now pick up the iPhone</h3>
+        <p>Point the iPhone's camera at this code and tap the link. The rest happens on the phone.</p>
+        <p class="muted mono">mxhddd.github.io/Memory-App</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Part 2: phone ───────── -->
+  <section id="phone" aria-labelledby="phone-h">
+    <div class="part"><span class="chip">Part 2 · on the iPhone</span></div>
+    <h2 id="phone-h">Switch it on and add Memory Garden</h2>
+
+    <ol class="steps" style="--start: 3">
+      <li>
+        <h3>Trust the app maker</h3>
+        <p class="path">Settings <span>→</span> General <span>→</span> VPN &amp; Device Management <span>→</span> Developer App <span>→</span> your Apple ID <span>→</span> Trust</p>
+        <p class="path">Then: Settings <span>→</span> Privacy &amp; Security <span>→</span> (scroll to the bottom) Developer Mode <span>→</span> On</p>
+        <p class="muted">The phone restarts. Afterwards tap <strong>Turn On</strong> and enter the passcode.</p>
+      </li>
+      <li>
+        <h3>Connect LocalDevVPN</h3>
+        <p>SideStore uses this small free app to install and refresh over Wi-Fi. Nothing leaves the phone.</p>
+        <a class="btn secondary" href="https://apps.apple.com/app/localdevvpn/id6755608044">Get LocalDevVPN on the App Store</a>
+        <p>Open it and tap <strong>Connect</strong>.</p>
+      </li>
+      <li>
+        <h3>Open SideStore once</h3>
+        <p>Sign in with the <strong>same Apple ID</strong>. Go to <strong>My Apps</strong> and tap the <strong>7 DAYS</strong> button next to SideStore to refresh it. If it asks about a certificate, accept.</p>
+      </li>
+      <li id="add">
+        <h3>Add Memory Garden</h3>
+        <p>Tap the button. SideStore opens and adds the Memory Garden source. Open it and tap <strong>Get</strong>.</p>
+        <a class="btn big" id="add-source" href="#">＋ Add Memory Garden to SideStore</a>
+        <details>
+          <summary>The button didn't open SideStore?</summary>
+          <p>Copy the link, then in SideStore go to <span class="path">Sources <span>→</span> + </span>, paste it and tap <strong>Add</strong>.</p>
+          <button class="btn secondary" type="button" id="copy-source">Copy the source link</button>
+          <p class="mono muted" id="source-url"></p>
+          <p class="muted">Last resort: <a id="install-direct" href="#">install the app file directly</a> (you won't get one-tap updates this way).</p>
+        </details>
+        <p class="printonly">Source link: https://github.com/Mxhddd/Memory-App/releases/latest/download/sidestore-source.json</p>
+      </li>
+      <li>
+        <h3>Open Memory Garden</h3>
+        <p>Pick <strong id="look-name">Midnight Den</strong>, type your name, and <strong>Allow</strong> notifications so reminders can reach you.</p>
+        <details open>
+          <summary>Nice extras (2 minutes)</summary>
+          <ul class="need">
+            <li><strong>Home Screen widgets:</strong> touch and hold the Home Screen → <strong>Edit → Add Widget</strong> → Memory Garden. The <em>Flashcard</em> widget lets you answer cards without opening the app.</li>
+            <li><strong>Control Center:</strong> swipe down from the top right → <strong>+</strong> → <strong>Add a Control</strong> → Memory Garden.</li>
+            <li><strong>Lock Screen:</strong> today's trail appears there, and on the Dynamic Island while you study.</li>
+            <li><strong>Siri:</strong> say <em>“What's next in Memory Garden?”</em></li>
+          </ul>
+        </details>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ───────── Keep it running ───────── -->
+  <section id="keep" aria-labelledby="keep-h">
+    <div class="part"><span class="chip">After that</span></div>
+    <h2 id="keep-h">Keep it running</h2>
+    <div class="card">
+      <h3>Every 7 days: a refresh</h3>
+      <p>A free Apple ID signs apps for 7 days. SideStore renews them in the background while the phone is on <strong>Wi-Fi</strong> and <strong>LocalDevVPN</strong> is connected. Memory Garden shows the days left in <strong>Settings</strong> and reminds you 2 days before.</p>
+      <p>To refresh by hand: connect LocalDevVPN, open SideStore → <strong>My Apps → Refresh All</strong>.</p>
+      <p class="muted">If it ever runs out, the app just won't open until you refresh. <strong>Nothing is lost.</strong></p>
+    </div>
+    <div class="card">
+      <h3>Updates</h3>
+      <p>When a new version comes out, SideStore shows an <strong>Update</strong> button for Memory Garden. One tap, and your progress stays.</p>
+    </div>
+    <div class="card">
+      <h3>Free Apple ID limits</h3>
+      <p>Up to <strong>3 apps</strong> per phone at a time (SideStore counts as one), and <strong>10 new app installs a week</strong>. Updates and refreshes don't count. So don't sideload other apps with this Apple ID on this phone.</p>
+    </div>
+  </section>
+
+  <!-- ───────── Troubleshooting ───────── -->
+  <section id="help" aria-labelledby="help-h">
+    <div class="part"><span class="chip">If something's off</span></div>
+    <h2 id="help-h">Troubleshooting</h2>
+    <div class="card">
+      <table>
+        <tr><th>iloader doesn't see the iPhone</th><td>Unlock the phone, tap <strong>Trust</strong>, try another cable or USB port. Still nothing? Reinstall iTunes from apple.com and restart the laptop.</td></tr>
+        <tr><th>“Untrusted Developer” when opening an app</th><td>Do step 4: Settings → General → VPN &amp; Device Management → Trust.</td></tr>
+        <tr><th>No “Developer Mode” in Settings</th><td>It appears after SideStore is installed. Restart the phone and look again under Privacy &amp; Security.</td></tr>
+        <tr><th>SideStore can't install or refresh</th><td>Be on Wi-Fi, open LocalDevVPN and tap <strong>Connect</strong>, then try again. Still failing? Plug into the laptop and run iloader again (it renews the pairing).</td></tr>
+        <tr><th>“Maximum number of apps”</th><td>The free Apple ID allows 3 apps on this phone. Remove other sideloaded apps signed with it.</td></tr>
+        <tr><th>Memory Garden won't open</th><td>Its 7 days ran out. Connect LocalDevVPN and tap <strong>Refresh All</strong> in SideStore. Your data is safe.</td></tr>
+        <tr><th>Notifications don't arrive</th><td>iPhone Settings → Notifications → Memory Garden → Allow. In the app: Settings shows whether they're on.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <div class="noprint">
+    <button class="btn secondary" type="button" onclick="window.print()">🖨 Print this as a checklist</button>
+  </div>
+
+  <footer class="muted">
+    <p>Memory Garden is free and private: everything stays on the phone. It trains memory skills; it is not a medical device.</p>
+    <p><a href="https://github.com/Mxhddd/Memory-App/releases/latest">Latest release</a> · <a href="https://github.com/Mxhddd/Memory-App/blob/HEAD/docs/INSTALL.md">Full manual</a></p>
+  </footer>
+</main>
+<div class="toast" role="status" aria-live="polite" id="toast"></div>
+
+<script>
+  (function () {
+    var SOURCE = 'https://github.com/Mxhddd/Memory-App/releases/latest/download/sidestore-source.json';
+    var IPA = 'https://github.com/Mxhddd/Memory-App/releases/latest/download/MemoryGarden.ipa';
+    var root = document.documentElement;
+
+    // Phone or laptop: show the part that matters here first.
+    var ua = navigator.userAgent;
+    var isPhone = /iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    root.setAttribute('data-device', isPhone ? 'phone' : 'laptop');
+
+    // Whose phone: MaoMao (Midnight Den) or Salma (Gilded Atelier). Remembered on this device.
+    var people = {
+      maomao: { name: "MaoMao's iPhone", look: 'den', lookName: 'Midnight Den' },
+      salma: { name: "Salma's iPhone", look: 'atelier', lookName: 'Gilded Atelier' }
+    };
+    function choose(who, save) {
+      var p = people[who] || people.maomao;
+      root.setAttribute('data-look', p.look);
+      document.getElementById('for-line').textContent = 'Step by step, for ' + p.name + '.';
+      document.getElementById('look-name').textContent = p.lookName;
+      document.querySelectorAll('.who button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.for === who)); });
+      if (save) { try { localStorage.setItem('mg.for', who); } catch (e) {} }
+    }
+    var param = new URLSearchParams(location.search).get('for');
+    var saved = null; try { saved = localStorage.getItem('mg.for'); } catch (e) {}
+    choose(param in people ? param : (saved in people ? saved : 'maomao'), false);
+    document.querySelectorAll('.who button').forEach(function (b) {
+      b.addEventListener('click', function () { choose(b.dataset.for, true); });
+    });
+
+    // One tap into SideStore (its own URL scheme: sidestore://source?url=…), with copy/paste as a fallback.
+    document.getElementById('add-source').href = 'sidestore://source?url=' + encodeURIComponent(SOURCE);
+    document.getElementById('install-direct').href = 'sidestore://install?url=' + encodeURIComponent(IPA);
+    document.getElementById('source-url').textContent = SOURCE;
+
+    var toast = document.getElementById('toast');
+    function say(text) { toast.textContent = text; toast.classList.add('show'); setTimeout(function () { toast.classList.remove('show'); }, 2200); }
+    document.getElementById('copy-source').addEventListener('click', function () {
+      function fallback() {
+        var r = document.createRange(); r.selectNodeContents(document.getElementById('source-url'));
+        var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        say('Selected — tap Copy');
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(SOURCE).then(function () { say('Copied — now paste it in SideStore'); }, fallback);
+      } else { fallback(); }
+    });
+  })();
+</script>
+</body>
+</html>
