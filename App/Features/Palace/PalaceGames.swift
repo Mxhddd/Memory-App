@@ -115,8 +115,18 @@ struct WordSprintGame: View {
 
     @State private var index = 0
     @State private var recalling = false
+    @State private var predicted = false
+    @State private var prediction: Int?
+    @State private var studyStart = Date()
+    @State private var secondsPerItem: Double?
 
     private var words: [String] { WordBank.sprint(count: ctx.size, seed: ctx.seed) }
+
+    private func beginRecall() {
+        guard !recalling else { return }
+        secondsPerItem = Date().timeIntervalSince(studyStart) / Double(max(words.count, 1))
+        recalling = true
+    }
 
     /// The palace stops this sprint walks, or nil without a palace.
     private var mapStops: [String]? {
@@ -131,15 +141,22 @@ struct WordSprintGame: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            if recalling || retention {
+            if (recalling || retention) && !predicted {
+                PredictionStep(total: words.count, unit: "words",
+                               question: retention ? "How many of these \(words.count) words are still there?" : "How many of the \(words.count) words will you get in place?") {
+                    prediction = $0
+                    predicted = true
+                }
+            } else if recalling || retention {
                 SequentialRecall(labels: words.indices.map(stopName), keyboard: .default, mapStops: mapStops) { answers in
                     let s = Loci.scoreWords(recalled: answers, targets: words)
-                    onFinish(GameOutcome(correct: s.inPlace, total: s.total, meanRTms: 0, score: s.accuracy, level: ctx.size))
+                    onFinish(GameOutcome(correct: s.inPlace, total: s.total, meanRTms: 0, score: s.accuracy, level: ctx.size,
+                                         prediction: prediction, secondsPerItem: retention ? nil : secondsPerItem))
                 }
             } else {
                 HStack {
                     GameHeader(title: palace.map { "Place each word along \($0.name)" } ?? "Picture each word vividly", progress: (index + 1, words.count))
-                    EncodeTimer(seconds: Course.encodingSeconds(kind: .wordSprint, size: words.count)) { recalling = true }
+                    EncodeTimer(seconds: Course.encodingSeconds(kind: .wordSprint, size: words.count, pace: ctx.pace ?? EncodingPace.start(.wordSprint))) { beginRecall() }
                 }
                 if let mapStops {
                     PalaceMapView(stops: mapStops, current: index,
@@ -162,13 +179,14 @@ struct WordSprintGame: View {
                         .disabled(index == 0)
                     Button(index + 1 < words.count ? "Next" : "Recall now") {
                         Haptic.tap()
-                        if index + 1 < words.count { index += 1 } else { recalling = true }
+                        if index + 1 < words.count { index += 1 } else { beginRecall() }
                     }
                     .buttonStyle(PrimaryButtonStyle())
                 }
             }
         }
         .padding()
+        .onAppear { studyStart = Date() }
     }
 }
 
@@ -182,16 +200,26 @@ struct NumberSprintGame: View {
     @State private var recalling = false
     @State private var showPegs = false
     @State private var answer = ""
+    @State private var predicted = false
+    @State private var prediction: Int?
+    @State private var studyStart = Date()
+    @State private var secondsPerItem: Double?
     @FocusState private var focused: Bool
 
     private var digits: String { MajorSystem.randomDigits(count: ctx.size, seed: ctx.seed) }
+
+    private func beginRecall() {
+        guard !recalling else { return }
+        secondsPerItem = Date().timeIntervalSince(studyStart) / Double(max(ctx.size, 1))
+        recalling = true
+    }
 
     var body: some View {
         VStack(spacing: 18) {
             if !recalling {
                 HStack {
                     GameHeader(title: "Turn each pair into a picture", progress: nil)
-                    EncodeTimer(seconds: Course.encodingSeconds(kind: .numberSprint, size: ctx.size)) { recalling = true }
+                    EncodeTimer(seconds: Course.encodingSeconds(kind: .numberSprint, size: ctx.size, pace: ctx.pace ?? EncodingPace.start(.numberSprint))) { beginRecall() }
                 }
                 ScrollView {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
@@ -208,7 +236,12 @@ struct NumberSprintGame: View {
                     }
                 }
                 Toggle("Show peg words (training wheels)", isOn: $showPegs).tint(theme.primary).foregroundStyle(theme.text)
-                Button("Recall now") { recalling = true }.buttonStyle(PrimaryButtonStyle())
+                Button("Recall now") { beginRecall() }.buttonStyle(PrimaryButtonStyle())
+            } else if !predicted {
+                PredictionStep(total: ctx.size, unit: "digits", question: "How many of the \(ctx.size) digits will you get in place?") {
+                    prediction = $0
+                    predicted = true
+                }
             } else {
                 GameHeader(title: "Type the number", progress: nil)
                 Text("\(ctx.size) digits").font(theme.caption).foregroundStyle(theme.secondaryText)
@@ -225,13 +258,15 @@ struct NumberSprintGame: View {
                 Spacer()
                 Button("Done") {
                     let s = Loci.scoreDigits(recalled: answer, target: digits)
-                    onFinish(GameOutcome(correct: s.inPlace, total: s.total, meanRTms: 0, score: s.accuracy, level: ctx.size))
+                    onFinish(GameOutcome(correct: s.inPlace, total: s.total, meanRTms: 0, score: s.accuracy, level: ctx.size,
+                                         prediction: prediction, secondsPerItem: secondsPerItem))
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .onAppear { focused = true }
             }
         }
         .padding()
+        .onAppear { studyStart = Date() }
     }
 }
 

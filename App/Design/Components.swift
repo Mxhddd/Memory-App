@@ -281,3 +281,56 @@ enum Haptic {
     static func soft() { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
     static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
 }
+
+// MARK: Sections
+
+/// A settings-style group drawn in the theme's own voice instead of the stock grouped Form:
+/// a display-font header, one soft surface, and a quiet footer.
+struct ThemedSection<Content: View>: View {
+    @Environment(\.theme) private var theme
+    let title: String
+    var footer: String?
+    @ViewBuilder var content: Content
+
+    init(_ title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.footer = footer
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(theme.display(22)).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 14) { content }
+                .font(theme.body)
+                .foregroundStyle(theme.text)
+                .tint(theme.primary)
+                .themedCard()
+            if let footer {
+                Text(footer).font(.footnote).foregroundStyle(theme.secondaryText).padding(.horizontal, 4)
+            }
+        }
+    }
+}
+
+/// A text field that sits on a themed surface (outside a Form fields have no chrome at all).
+struct ThemedField: View {
+    @Environment(\.theme) private var theme
+    let label: String
+    @Binding var text: String
+
+    init(_ label: String, text: Binding<String>) {
+        self.label = label
+        _text = text
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption.weight(.bold)).foregroundStyle(theme.secondaryText)
+            TextField(label, text: $text)
+                .padding(.horizontal, 12)
+                .frame(minHeight: theme.minTouch)
+                .background(theme.shape(step: 4, radius: 12).fill(theme.pixelBorders ? theme.raised : theme.background))
+        }
+    }
+}

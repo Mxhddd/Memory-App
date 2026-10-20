@@ -35,6 +35,8 @@ struct GameContext {
     var startedAt: Date = Date()
     /// Started from the Train tab rather than the day's plan.
     var isFreePlay: Bool = false
+    /// Seconds of study per item from the encoding speed ladder (sprints).
+    var pace: Double? = nil
 }
 
 /// Adaptive difficulty for training days: one Rasch ability per task, persisted locally.
@@ -94,5 +96,40 @@ extension Array {
     func shuffledSeeded(_ seed: String) -> [Element] {
         var rng = SeededRandom(seed)
         return shuffled(using: &rng)
+    }
+}
+
+/// Before recall: "how many do you think you'll get?" Guessing first, then seeing the real
+/// score, trains metamemory — knowing what you know — and Progress charts how close you get.
+struct PredictionStep: View {
+    @Environment(\.theme) private var theme
+    let total: Int
+    let unit: String
+    let question: String
+    let onDone: (Int?) -> Void
+    @State private var guess: Double = -1
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            MascotView(mood: .studying, size: 84)
+            Text("Before you recall").font(.caption.weight(.heavy)).tracking(1.1).foregroundStyle(theme.ornament)
+            Text(question).font(theme.display(26)).foregroundStyle(theme.text).multilineTextAlignment(.center)
+            Text("\(Int(max(guess, 0)))")
+                .font(theme.display(64).monospacedDigit()).foregroundStyle(theme.primary)
+                .contentTransition(.numericText())
+                .accessibilityHidden(true)
+            Slider(value: $guess, in: 0...Double(max(total, 1)), step: 1)
+                .tint(theme.primary)
+                .accessibilityLabel("Your guess")
+                .accessibilityValue("\(Int(max(guess, 0))) of \(total) \(unit)")
+            Text("of \(total) \(unit)").font(theme.caption).foregroundStyle(theme.secondaryText)
+            Spacer()
+            Button("That's my guess") { Haptic.tap(); onDone(Int(max(guess, 0))) }.buttonStyle(PrimaryButtonStyle())
+            Button("Skip") { onDone(nil) }.font(theme.bodyEmphasis).foregroundStyle(theme.secondaryText)
+                .frame(minHeight: theme.minTouch)
+        }
+        .padding()
+        .onAppear { if guess < 0 { guess = (Double(total) * 0.5).rounded() } }
     }
 }

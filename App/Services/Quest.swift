@@ -235,9 +235,20 @@ enum Quest {
             size = ChampionTest.size
         }
         let level = task.domain == .associative ? DifficultyStore.level(for: task) : 2
-        return GameContext(task: task, seed: seed, size: size, level: level, courseDay: profile.courseDay,
-                           palaceID: palaceID, benchmarkForm: BenchmarkPlanner.form(forSession: profile.benchmarkCount, userSeed: salt(profile)),
-                           championForm: championForm, reviewOffset: reviewOffset, isBenchmark: task.isBenchmark, startedAt: date)
+        var ctx = GameContext(task: task, seed: seed, size: size, level: level, courseDay: profile.courseDay,
+                              palaceID: palaceID, benchmarkForm: BenchmarkPlanner.form(forSession: profile.benchmarkCount, userSeed: salt(profile)),
+                              championForm: championForm, reviewOffset: reviewOffset, isBenchmark: task.isBenchmark, startedAt: date)
+        if task == .wordSprint { ctx.pace = pace(.wordSprint) }
+        if task == .numberSprint { ctx.pace = pace(.numberSprint) }
+        return ctx
+    }
+
+    /// Today's study seconds per item: the speed ladder replayed over past course sprints.
+    static func pace(_ kind: DrillKind) -> Double {
+        let raw = kind == .wordSprint ? RealmTask.wordSprint.rawValue : RealmTask.numberSprint.rawValue
+        let d = FetchDescriptor<TaskSession>(predicate: #Predicate { $0.taskRaw == raw && !$0.isFreePlay }, sortBy: [SortDescriptor(\.date)])
+        let past = (try? Store.context.fetch(d)) ?? []
+        return EncodingPace.pace(kind: kind, accuracies: past.map(\.score))
     }
 
     // MARK: Recording
@@ -428,6 +439,7 @@ enum AppEvents {
         SharedStore.defaults?.removeObject(forKey: SharedStore.needsRefreshKey)
         _ = Quest.refreshCompletion(profile)
         SpotlightIndex.refreshIfStale()
+        VaultGrading.refitIfNeeded(profile, in: Store.context)
         Task { await CircleService.shared.reportToday(profile: profile) }
     }
 }

@@ -17,95 +17,116 @@ struct SettingsView: View {
     @State private var notificationStatus = "…"
 
     var body: some View {
-        Form {
-            Section("You") {
-                TextField("Name", text: $profile.displayName)
-                TextField("Companion's name", text: $profile.mascotName)
-                Picker("Style", selection: Binding(get: { profile.theme }, set: { profile.theme = $0 })) {
-                    Text("Midnight Den (raccoon)").tag(ThemeID.midnightRaccoon)
-                    Text("Gilded Atelier").tag(ThemeID.gildedAtelier)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Make it yours").font(.caption.weight(.heavy)).tracking(1.1).foregroundStyle(theme.ornament)
+                    Text("Settings").font(theme.display(34)).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
                 }
-            }
 
-            Section {
-                DatePicker("Daily reminder", selection: $reminder, displayedComponents: .hourAndMinute)
-                    .onChange(of: reminder) { _, value in
-                        let hm = Calendar.current.dateComponents([.hour, .minute], from: value)
-                        // Opening Settings sets this too; only replan when the time really changed.
-                        guard hm.hour != profile.reminderHour || hm.minute != profile.reminderMinute else { return }
-                        profile.reminderHour = hm.hour ?? 19
-                        profile.reminderMinute = hm.minute ?? 30
-                        Notifications.replan(profile: profile)
-                    }
-                Toggle("Evening nudge if not done", isOn: $profile.eveningNudge)
-                    .onChange(of: profile.eveningNudge) { _, _ in Notifications.replan(profile: profile) }
-                Toggle("Quest on Lock Screen", isOn: $liveActivity)
-                    .onChange(of: liveActivity) { _, on in on ? LiveActivityService.sync(profile: profile) : LiveActivityService.endAll() }
-                Toggle("Sounds", isOn: $sfx)
-                LabeledContent("Notifications", value: notificationStatus)
-                if AlarmService.isSupported {
-                    LabeledContent("Alarms (ring on silent)", value: AlarmService.isAuthorized ? "Allowed" : "Not allowed")
-                    if !AlarmService.isAuthorized {
-                        Button("Allow alarms") { Task { await AlarmService.requestAuthorization() } }
+                if let days = SigningInfo.daysLeft() {
+                    SignatureCard(days: days)
+                }
+
+                ThemedSection("You") {
+                    ThemedField("Name", text: $profile.displayName)
+                    ThemedField("Companion's name", text: $profile.mascotName)
+                    LabeledContent("Style") {
+                        Picker("Style", selection: Binding(get: { profile.theme }, set: { profile.theme = $0 })) {
+                            Text("Midnight Den").tag(ThemeID.midnightRaccoon)
+                            Text("Gilded Atelier").tag(ThemeID.gildedAtelier)
+                        }
+                        .pickerStyle(.menu)
                     }
                 }
-            } header: {
-                Text("Reminders")
-            } footer: {
-                Text("At most 2 training prompts a day. Reminders you set yourself are separate.")
-            }
 
-            Section {
-                Picker("Minutes per day", selection: $profile.dailyMinutes) {
-                    Text("10").tag(10); Text("15").tag(15); Text("25").tag(25)
+                ThemedSection("Reminders", footer: "At most 2 training prompts a day. Reminders you set yourself are separate.") {
+                    DatePicker("Daily reminder", selection: $reminder, displayedComponents: .hourAndMinute)
+                        .onChange(of: reminder) { _, value in
+                            let hm = Calendar.current.dateComponents([.hour, .minute], from: value)
+                            // Opening Settings sets this too; only replan when the time really changed.
+                            guard hm.hour != profile.reminderHour || hm.minute != profile.reminderMinute else { return }
+                            profile.reminderHour = hm.hour ?? 19
+                            profile.reminderMinute = hm.minute ?? 30
+                            Notifications.replan(profile: profile)
+                        }
+                    Toggle("Evening nudge if not done", isOn: $profile.eveningNudge)
+                        .onChange(of: profile.eveningNudge) { _, _ in Notifications.replan(profile: profile) }
+                    Toggle("Quest on Lock Screen & Dynamic Island", isOn: $liveActivity)
+                        .onChange(of: liveActivity) { _, on in on ? LiveActivityService.sync(profile: profile) : LiveActivityService.endAll() }
+                    Toggle("Sounds", isOn: $sfx)
+                    LabeledContent("Notifications", value: notificationStatus)
+                    if AlarmService.isSupported {
+                        LabeledContent("Alarms (ring on silent)", value: AlarmService.isAuthorized ? "Allowed" : "Not allowed")
+                        if !AlarmService.isAuthorized {
+                            Button("Allow alarms") { Task { await AlarmService.requestAuthorization() } }
+                                .buttonStyle(SecondaryButtonStyle())
+                        }
+                    }
                 }
-                .pickerStyle(.segmented)
-                Toggle("Type answers in the Vault", isOn: $profile.typedAnswers)
-                Toggle("Show letters in n-back", isOn: $profile.showNBackLetters)
-                Stepper(value: $profile.desiredRetention, in: 0.80...0.97, step: 0.01) {
-                    LabeledContent("Vault target", value: "\(Int((profile.desiredRetention * 100).rounded()))% remembered")
+
+                ThemedSection("Training", footer: "Typing answers (instead of just revealing) makes recall stronger. Letters in n-back are an accessibility aid; the standard task is audio-only.") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Minutes per day").font(.caption.weight(.bold)).foregroundStyle(theme.secondaryText)
+                        Picker("Minutes per day", selection: $profile.dailyMinutes) {
+                            Text("10").tag(10); Text("15").tag(15); Text("25").tag(25)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    Toggle("Type answers in the Vault", isOn: $profile.typedAnswers)
+                    Toggle("Show letters in n-back", isOn: $profile.showNBackLetters)
+                    Stepper(value: $profile.desiredRetention, in: 0.80...0.97, step: 0.01) {
+                        LabeledContent("Vault target", value: "\(Int((profile.desiredRetention * 100).rounded()))% remembered")
+                    }
+                    NavigationLink { PalaceListView() } label: {
+                        Label("My palaces", systemImage: "building.columns.fill")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
                 }
-                NavigationLink("My palaces") { PalaceListView() }
-            } header: {
-                Text("Training")
-            } footer: {
-                Text("Typing answers (instead of just revealing) makes recall stronger. Letters in n-back are an accessibility aid; the standard task is audio-only.")
-            }
 
-            Section {
-                TextField("https://YOUR-PROJECT.supabase.co", text: $supabaseURL)
-                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                SecureField("Anon public key", text: $supabaseKey)
-            } header: {
-                Text("Circle server (optional)")
-            } footer: {
-                Text("Leave empty to use the values built into the app. See docs/INSTALL.md → Supabase.")
-            }
+                ThemedSection("Circle server (optional)", footer: "Leave empty to use the values built into the app. See docs/INSTALL.md → Supabase.") {
+                    ThemedField("Project URL", text: $supabaseURL)
+                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Anon public key").font(.caption.weight(.bold)).foregroundStyle(theme.secondaryText)
+                        SecureField("Anon public key", text: $supabaseKey)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: theme.minTouch)
+                            .background(theme.shape(step: 4, radius: 12).fill(theme.pixelBorders ? theme.raised : theme.background))
+                    }
+                }
 
-            Section {
-                Button("Export my data (JSON)") { exportURL = Exporter.exportFile() }
-                if let exportURL { ShareLink("Share export", item: exportURL) }
-                Button("Delete everything", role: .destructive) { confirmDelete = true }
-            } header: {
-                Text("Your data")
-            } footer: {
-                Text("Everything stays on this phone. Only “practised today: yes/no” is shared with people you add to your circle. No ads, no analytics, no tracking.")
-            }
+                ThemedSection("Your data", footer: "Everything stays on this phone. Only “practised today: yes/no” is shared with people you add to your circle. No ads, no analytics, no tracking.") {
+                    Button("Export my data (JSON)") { exportURL = Exporter.exportFile() }
+                        .buttonStyle(SecondaryButtonStyle())
+                    if let exportURL {
+                        ShareLink(item: exportURL) { Label("Share export", systemImage: "square.and.arrow.up") }
+                            .buttonStyle(SecondaryButtonStyle())
+                    }
+                    Button("Delete everything", role: .destructive) { confirmDelete = true }
+                        .font(theme.bodyEmphasis)
+                        .foregroundStyle(theme.danger)
+                        .frame(maxWidth: .infinity, minHeight: theme.minTouch)
+                }
 
-            Section {
-                Text("Memory Garden trains memory techniques and working memory. It is not a medical device and makes no claims about preventing or treating any condition.")
-                    .font(.footnote)
-                Text("Fonts: Pixelify Sans & Cormorant Garamond (SIL Open Font License).").font(.footnote)
-                LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–")
-                    .onTapGesture { versionTaps += 1 }
-                if versionTaps >= 5 { NavigationLink("Debug tools") { DebugView(profile: profile) } }
-            } header: {
-                Text("About")
+                ThemedSection("About") {
+                    Text("Memory Garden trains memory techniques and working memory. It is not a medical device and makes no claims about preventing or treating any condition.")
+                        .font(.footnote)
+                    Text("Fonts: Pixelify Sans & Cormorant Garamond (SIL Open Font License).").font(.footnote)
+                    LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–")
+                        .contentShape(Rectangle())
+                        .onTapGesture { versionTaps += 1 }
+                    if versionTaps >= 5 { NavigationLink("Debug tools") { DebugView(profile: profile) } }
+                }
             }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 28)
         }
-        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .background(ThemedBackground())
         .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             reminder = Calendar.current.date(bySettingHour: profile.reminderHour, minute: profile.reminderMinute, second: 0, of: Date()) ?? Date()
             Task {
@@ -128,6 +149,40 @@ struct SettingsView: View {
         } message: {
             Text("This removes your training history, palaces, Vault cards, reminders and circle. It can't be undone.")
         }
+    }
+}
+
+/// How long until the free Apple ID signature runs out, and a one-tap way to refresh it.
+struct SignatureCard: View {
+    @Environment(\.theme) private var theme
+    let days: Int
+
+    var body: some View {
+        let urgent = days <= 2
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().stroke(theme.hairline, lineWidth: 5)
+                Circle().trim(from: 0, to: CGFloat(min(days, 7)) / 7)
+                    .stroke(urgent ? theme.danger : theme.success, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Text("\(days)").font(theme.display(22)).foregroundStyle(theme.text)
+            }
+            .frame(width: 54, height: 54)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(days == 0 ? "App signature renews today" : "App signature renews in \(days) day\(days == 1 ? "" : "s")")
+                    .font(theme.bodyEmphasis).foregroundStyle(theme.text)
+                Text(urgent ? "On Wi-Fi, connect LocalDevVPN, then open SideStore and tap Refresh All. Nothing is lost."
+                            : "SideStore refreshes it in the background. You'll get a reminder 2 days before.")
+                    .font(.footnote).foregroundStyle(theme.secondaryText)
+                Button("Open SideStore") { UIApplication.shared.open(SigningInfo.sideStoreURL) }
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(theme.primary)
+                    .padding(.top, 2)
+            }
+        }
+        .themedCard(raised: urgent)
+        .accessibilityElement(children: .combine)
     }
 }
 

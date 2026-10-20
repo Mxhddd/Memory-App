@@ -39,6 +39,9 @@ struct TodayView: View {
                 hero
                 VStack(spacing: 22) {
                     greetingBlock
+                    if let days = SigningInfo.daysLeft(), days <= 2 {
+                        RefreshBanner(days: days)
+                    }
                     trail
                     nextIntentionCard
                     levelsRow
@@ -395,5 +398,30 @@ struct TrailNode: View {
             Text(subtitle).font(.caption).foregroundStyle(theme.secondaryText).lineLimit(2)
         }
         .multilineTextAlignment(align == .leading ? .leading : .trailing)
+    }
+}
+
+/// A free install stops opening after 7 days unless SideStore refreshes it. Shown only in the
+/// last two days, quietly, with the one tap that fixes it.
+struct RefreshBanner: View {
+    @Environment(\.theme) private var theme
+    let days: Int
+
+    var body: some View {
+        Button { UIApplication.shared.open(SigningInfo.sideStoreURL) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.triangle.2.circlepath").font(.title3.weight(.bold)).foregroundStyle(theme.ornament)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(days == 0 ? "Refresh the app today" : "Refresh the app within \(days) day\(days == 1 ? "" : "s")")
+                        .font(theme.bodyEmphasis).foregroundStyle(theme.text)
+                    Text("Connect LocalDevVPN, then tap Refresh All in SideStore.").font(.footnote).foregroundStyle(theme.secondaryText)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(theme.secondaryText)
+            }
+            .themedCard(raised: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens SideStore")
     }
 }

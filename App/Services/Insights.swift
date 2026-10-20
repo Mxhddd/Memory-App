@@ -58,6 +58,23 @@ struct InsightsReport {
     var whatSticks: [RetentionPoint] = []
     var activeDays28 = 0
     var weeklyStreak = 0
+    /// Guesses made before recall vs what happened.
+    var calibration: [CalibrationPoint] = []
+    var calibrationSummary: Calibration.Summary?
+    /// Seconds of study per word in course sprints, and today's budget from the speed ladder.
+    var wordPace: [TrendPoint] = []
+    var wordPaceBudget = EncodingPace.start(.wordSprint)
+    /// The Vault: what you really recalled vs the forecast, and the suggested target.
+    var vaultRetention: FSRSPersonal.TrueRetention?
+    var personalFSRS = false
+    var retentionAdvice: FSRSPersonal.RetentionAdvice?
+}
+
+struct CalibrationPoint: Identifiable {
+    let id = UUID()
+    let date: Date
+    let predicted: Double
+    let actual: Double
 }
 
 @MainActor
@@ -110,6 +127,25 @@ enum Insights {
 
         r.activeDays28 = Quest.activeDays(last: 28)
         r.weeklyStreak = Quest.weeklyStreak()
+
+        let guessed = sessions.filter { $0.prediction != nil && $0.total > 0 }
+        r.calibration = guessed.map {
+            let p = Calibration.Point(predicted: $0.prediction ?? 0, actual: $0.correct, total: $0.total)
+            return CalibrationPoint(date: $0.date, predicted: p.predicted, actual: p.actual)
+        }
+        r.calibrationSummary = Calibration.summary(guessed.map { Calibration.Point(predicted: $0.prediction ?? 0, actual: $0.correct, total: $0.total) })
+
+        let course = sprints.filter { !$0.isFreePlay }
+        r.wordPace = course.compactMap { s in s.secondsPerItem.map { TrendPoint(date: s.date, value: $0) } }
+        r.wordPaceBudget = EncodingPace.pace(kind: .wordSprint, accuracies: course.map(\.score))
+
+        let events = VaultGrading.events(in: Store.context)
+        r.vaultRetention = FSRSPersonal.trueRetention(events)
+        let fitted = Store.profile()?.fsrsParameters
+        r.personalFSRS = fitted?.count == 21
+        if events.count >= FSRSPersonal.minimumReviews {
+            r.retentionAdvice = FSRSPersonal.adviseRetention(parameters: r.personalFSRS ? fitted! : FSRSScheduler.defaultParameters)
+        }
         return r
     }
 }

@@ -9,6 +9,7 @@ struct TrainView: View {
     @Environment(\.theme) private var theme
     @State private var playing: GameContext?
     @State private var palaceCount = 0
+    @State private var why: WhyTopic?
 
     var body: some View {
         ScrollView {
@@ -42,17 +43,17 @@ struct TrainView: View {
                     }
                 }
 
-                medallions("Palace drills", sub: "Free practice — the course sets your daily drills", [
+                medallions("Palace drills", sub: "Free practice — the course sets your daily drills", topic: .palace, [
                     (.wordSprint, profile.wordLevel, "\(profile.wordLevel) words"),
                     (.numberSprint, profile.digitLevel, "\(profile.digitLevel) digits"),
                     (.routeWalk, 0, palaceCount == 0 ? "No palace yet" : "Walk a palace"),
                 ])
-                medallions("Working-memory gym", sub: "Holding and juggling information", [
+                medallions("Working-memory gym", sub: "Holding and juggling information", topic: .gym, [
                     (.dualNBack, profile.nBackLevel, "\(profile.nBackLevel)-back"),
                     (.complexSpan, 0, "Letters + sums"),
                     (.sequences, 0, "Span \(profile.sequenceSpan)"),
-                ], note: "These reliably train working memory itself. Whether that spreads to everyday memory is debated, so the palace course is the core and the gym is the supplement.")
-                medallions("Arcade", sub: "Binding things together", [
+                ])
+                medallions("Arcade", sub: "Binding things together", topic: .arcade, [
                     (.faceName, 0, "Names"),
                     (.ancientRunes, 0, "Symbols"),
                     (.stash, 0, "Places"),
@@ -66,17 +67,26 @@ struct TrainView: View {
         .navigationTitle("Train")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { palaceCount = Quest.palaces().count }
+        .sheet(item: $why) { topic in WhySheet(topic: topic).environment(\.theme, theme) }
         .fullScreenCover(item: Binding(get: { playing.map(GameItem.init) }, set: { if $0 == nil { playing = nil } })) { item in
             GameHost(ctx: item.ctx, profile: profile) { _ in playing = nil }
                 .environment(\.theme, theme)
         }
     }
 
-    private func medallions(_ title: String, sub: String, _ drills: [(RealmTask, Int, String)], note: String? = nil) -> some View {
+    private func medallions(_ title: String, sub: String, topic: WhyTopic, _ drills: [(RealmTask, Int, String)]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(theme.display(24)).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
-                Text(sub).font(theme.caption).foregroundStyle(theme.secondaryText)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(theme.display(24)).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
+                    Text(sub).font(theme.caption).foregroundStyle(theme.secondaryText)
+                }
+                Spacer()
+                Button { why = topic } label: {
+                    Image(systemName: "info.circle").font(.title3).foregroundStyle(theme.ornament)
+                        .frame(width: theme.minTouch, height: theme.minTouch)
+                }
+                .accessibilityLabel("Why \(title.lowercased()) works")
             }
             HStack(alignment: .top, spacing: 8) {
                 ForEach(drills, id: \.0) { drill in
@@ -102,9 +112,6 @@ struct TrainView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(theme.copy.realmName(drill.0)), \(drill.2)")
                 }
-            }
-            if let note {
-                Text(note).font(.caption).foregroundStyle(theme.secondaryText)
             }
         }
     }
@@ -179,6 +186,67 @@ struct CourseTrail: View {
             Circle().fill(fill).frame(width: size, height: size)
                 .shadow(color: kind == .today ? theme.ornament.opacity(0.35) : .clear, radius: 6)
         }
+    }
+}
+
+/// The evidence behind each kind of drill, with its honest limits.
+enum WhyTopic: String, Identifiable {
+    case palace, gym, arcade
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .palace: return "Why the palace works"
+        case .gym: return "Why the gym works — and its limits"
+        case .arcade: return "Why the arcade works"
+        }
+    }
+
+    var points: [(String, String)] {
+        switch self {
+        case .palace: return [
+            ("What it does", "You pin each item to a place you know well, then walk the route to read it back. Places give every item a fixed slot and a cue, which is why order comes back too."),
+            ("The evidence", "In a 2017 study (Dresler et al., Neuron), beginners who trained the method of loci for six weeks went from about 26 to 62 of 72 words, stayed well above their starting point four months later, and their brain networks shifted toward those of memory champions. The method is among the best-supported memory techniques in the lab."),
+            ("The limits", "It is a skill for lists, names, numbers and speeches. It won't make you forget less in general, and it takes practice to become fast — which is what the course is for."),
+        ]
+        case .gym: return [
+            ("What it does", "N-back, letters + sums and sequences make you hold and update information while doing something else. That is working memory: your mental notepad."),
+            ("The evidence", "Training reliably improves the trained tasks and closely related ones (near transfer; meta-analyses such as Soveri et al., 2017)."),
+            ("The limits", "Whether it spreads to everyday memory or intelligence is debated; large reviews (Melby-Lervåg et al., 2016) found little far transfer. So the palace course is the core here, and the gym is a supplement you can enjoy."),
+        ]
+        case .arcade: return [
+            ("What it does", "Names with faces, symbols, and where you left things: each drill trains binding — tying two things together so one brings back the other."),
+            ("The evidence", "Making a vivid link between a name and a face feature is a long-studied mnemonic that improves name recall in older adults, and spacing practice over days makes it last (the spacing effect)."),
+            ("The limits", "Gains are specific to what you practise. The benchmarks in Progress check honestly whether anything carries over."),
+        ]
+        }
+    }
+}
+
+struct WhySheet: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    let topic: WhyTopic
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(topic.points, id: \.0) { point in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(point.0).font(theme.display(22)).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
+                            Text(point.1).font(theme.body).foregroundStyle(theme.text)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(ThemedBackground())
+            .navigationTitle(topic.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 

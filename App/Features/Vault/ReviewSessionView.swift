@@ -24,7 +24,7 @@ struct ReviewSessionView: View {
     /// Warm-up cap so the Vault never eats the whole session.
     private var timeCapSeconds: Double { countsForSession ? Double(max(profile.dailyMinutes / 3, 3)) * 60 : .infinity }
 
-    private var scheduler: FSRSScheduler { FSRSScheduler(desiredRetention: profile.desiredRetention) }
+    private var scheduler: FSRSScheduler { VaultGrading.scheduler(desiredRetention: profile.desiredRetention, in: Store.context) }
 
     var body: some View {
         ZStack {

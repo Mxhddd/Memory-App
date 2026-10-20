@@ -42,6 +42,10 @@ final class Profile {
 
     // Vault
     var desiredRetention: Double = 0.9
+    /// FSRS parameters fitted to this person's own reviews (nil = the published defaults).
+    var fsrsParameters: [Double]?
+    /// How many reviews the fit above was made from.
+    var fsrsFittedReviews: Int = 0
     var typedAnswers: Bool = true
 
     // Rewards

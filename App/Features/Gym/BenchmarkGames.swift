@@ -9,13 +9,14 @@ struct WordRecallBenchmark: View {
     let ctx: GameContext
     let onFinish: (GameOutcome) -> Void
 
-    private enum Phase { case study, distract, recall }
+    private enum Phase { case study, predict, distract, recall }
     @State private var phase: Phase
+    @State private var prediction: Int?
 
     init(ctx: GameContext, onFinish: @escaping (GameOutcome) -> Void) {
         self.ctx = ctx
         self.onFinish = onFinish
-        _phase = State(initialValue: ctx.task == .championDelayed ? .recall : .study)
+        _phase = State(initialValue: ctx.task == .championDelayed ? .predict : .study)
     }
 
     private var champion: Bool { ctx.task == .championTest || ctx.task == .championDelayed }
@@ -31,7 +32,7 @@ struct WordRecallBenchmark: View {
             case .study:
                 HStack {
                     GameHeader(title: "Study these \(words.count) words any way you like", progress: nil)
-                    EncodeTimer(seconds: champion ? ChampionTest.encodeSeconds : 300) { phase = .distract }
+                    EncodeTimer(seconds: champion ? ChampionTest.encodeSeconds : 300) { phase = .predict }
                 }
                 ScrollView {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: champion ? 3 : 2), spacing: 10) {
@@ -42,7 +43,14 @@ struct WordRecallBenchmark: View {
                         }
                     }
                 }
-                Button("I'm done studying") { phase = .distract }.buttonStyle(PrimaryButtonStyle())
+                Button("I'm done studying") { phase = .predict }.buttonStyle(PrimaryButtonStyle())
+            case .predict:
+                PredictionStep(total: words.count, unit: "words",
+                               question: ctx.task == .championDelayed ? "Of yesterday's \(words.count) words, how many can you still recall?"
+                                                                      : "How many of the \(words.count) words will you remember?") {
+                    prediction = $0
+                    phase = ctx.task == .championDelayed ? .recall : .distract
+                }
             case .distract:
                 Spacer()
                 Text("Count backwards from 100 in sevens, in your head.").font(theme.display(26)).foregroundStyle(theme.text).multilineTextAlignment(.center)
@@ -69,7 +77,7 @@ struct WordRecallBenchmark: View {
                 Button("Finish") {
                     let s = Loci.scoreWords(recalled: recalled, targets: words)
                     onFinish(GameOutcome(correct: s.anyPlace, total: words.count, meanRTms: 0,
-                                         score: Double(s.anyPlace) / Double(words.count), level: s.anyPlace))
+                                         score: Double(s.anyPlace) / Double(words.count), level: s.anyPlace, prediction: prediction))
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .onAppear { focused = true }
