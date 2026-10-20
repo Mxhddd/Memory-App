@@ -113,8 +113,12 @@ jobs:
           VERSION: ${{ steps.v.outputs.version }}
         run: |
           BASE="https://github.com/$GITHUB_REPOSITORY/releases"
+          # "latest" can take a moment to point at a brand-new release, so retry for ~2 minutes.
           for url in "$BASE/latest/download/sidestore-source.json" "$BASE/latest/download/icon.png" "$BASE/download/v$VERSION/MemoryGarden.ipa"; do
-            code=$(curl -sIL -o /dev/null -w '%{http_code}' "$url"); echo "$code $url"
+            for try in $(seq 1 12); do
+              code=$(curl -sIL -o /dev/null -w '%{http_code}' "$url"); [ "$code" = "200" ] && break; sleep 10
+            done
+            echo "$code $url"
             [ "$code" = "200" ] || { echo "::error::$url answered $code"; exit 1; }
           done
           curl -fsSL "$BASE/latest/download/sidestore-source.json" | python3 -c "import json,sys; d=json.load(sys.stdin); v=d['apps'][0]['versions'][0]; assert v['version']=='$VERSION', v; print('Source serves', v['version'])"
