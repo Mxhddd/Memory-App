@@ -35,19 +35,19 @@ public enum Journey {
 
     public static let packs: [JourneyPack] = [
         pack("errands", "Weekend errands", [
-            "pick up the dry cleaning|dry cleaning|cleaning|laundry", "buy stamps|stamps", "return the library book|library|book",
+            "pick up the dry cleaning|dry cleaning|cleaning|laundry", "buy stamps|stamps", "return the library book|library book|library|book",
             "get the car washed|car wash|car", "buy birthday candles|candles", "collect a parcel|parcel|package",
-            "pay the electricity bill|electricity|bill", "get a haircut|haircut|hair", "buy light bulbs|light bulbs|bulbs",
+            "pay the electricity bill|electricity bill|electricity|bill", "get a haircut|haircut|hair", "buy light bulbs|light bulbs|bulbs",
             "drop off old clothes|old clothes|clothes", "pick up medicine|medicine|pharmacy", "buy fresh flowers|flowers",
-            "book a table for dinner|table|restaurant", "fix the bicycle tyre|bicycle|tyre|bike", "post a letter|letter",
+            "book a table for dinner|dinner table|table|restaurant|dinner", "fix the bicycle tyre|bicycle tyre|bicycle|tyre|bike", "post a letter|letter",
         ]),
         pack("beach", "Packing for the beach", [
             "sunscreen", "towel", "sunglasses", "flip-flops|flip flops|slippers", "beach umbrella|umbrella",
-            "water bottle|water", "sun hat|hat", "swimsuit|swimming costume", "a novel|novel|book", "snacks",
+            "water bottle|water", "sun hat|hat", "swimsuit|swimsuit|swimming costume", "a novel|novel|book", "snacks",
             "camera", "phone charger|charger", "beach ball|ball", "first-aid kit|first aid", "picnic mat|mat",
         ]),
         pack("groceries", "The grocery run", [
-            "eggs", "milk", "bread", "tomatoes", "onions", "rice", "lentils|daal|dal", "yogurt|dahi",
+            "eggs", "milk", "bread", "tomatoes", "onions", "rice", "lentils|lentils|daal|dal", "yogurt|yogurt|dahi",
             "bananas", "chicken", "spinach", "butter", "lemons", "tea", "garlic",
         ]),
         pack("karahi", "Chicken karahi, step by step", ordered: true, [
@@ -61,63 +61,63 @@ public enum Journey {
         ]),
         pack("wedding", "The wedding to-do list", [
             "send the invitations|invitations|invites", "book the caterer|caterer|catering", "order the flowers|flowers",
-            "book the mehndi artist|mehndi|henna", "hire the photographer|photographer", "tailor fitting|tailor|fitting",
-            "order the sweets|sweets|mithai", "string the fairy lights|lights", "choose the music|music",
+            "book the mehndi artist|mehndi artist|mehndi|henna", "hire the photographer|photographer", "tailor fitting|tailor fitting|tailor|fitting",
+            "order the sweets|sweets|mithai", "string the fairy lights|fairy lights|lights", "choose the music|music",
             "arrange the car|car", "wrap the gifts|gifts|presents", "collect the rings|rings",
         ]),
         pack("morning", "A talk: seven habits for a good morning", ordered: true, [
-            "drink a glass of water|water", "stretch for five minutes|stretch|stretching", "step into sunlight|sunlight|sun",
-            "write three goals|goals|three goals", "eat a real breakfast|breakfast", "no phone for the first hour|phone|no phone",
-            "take a short walk|walk",
+            "drink a glass of water|glass of water|water", "stretch for five minutes|stretch|stretching", "step into sunlight|sunlight|sun",
+            "write three goals|three goals|goals", "eat a real breakfast|breakfast", "no phone for the first hour|no phone|phone",
+            "take a short walk|short walk|walk",
         ]),
         pack("wonders", "The new Seven Wonders", [
-            "the Great Wall of China|great wall|wall", "Petra", "Christ the Redeemer|christ|redeemer",
-            "Machu Picchu", "Chichen Itza", "the Colosseum|colosseum", "the Taj Mahal|taj mahal|taj",
+            "the Great Wall of China|Great Wall|wall", "Petra", "Christ the Redeemer|Christ the Redeemer|redeemer|christ",
+            "Machu Picchu", "Chichen Itza", "the Colosseum|Colosseum", "the Taj Mahal|Taj Mahal|taj",
         ]),
         pack("camping", "Camping trip kit", [
-            "tent", "sleeping bag", "torch|flashlight", "matches", "compass", "map", "rope", "kettle",
-            "rain jacket|raincoat|jacket", "insect spray|mosquito spray|spray", "pillow", "marshmallows",
+            "tent", "sleeping bag", "torch|torch|flashlight", "matches", "compass", "map", "rope", "kettle",
+            "rain jacket|rain jacket|raincoat|jacket", "insect spray|insect spray|mosquito spray|spray", "pillow", "marshmallows",
         ]),
         pack("repairs", "The hardware shop", [
-            "screws", "hammer", "paint", "paintbrush|brush", "duct tape|tape", "glue", "nails", "sandpaper",
+            "screws", "hammer", "paint", "paintbrush|paintbrush|brush", "duct tape|tape", "glue", "nails", "sandpaper",
             "drill bits|drill", "work gloves|gloves", "ladder", "light switch|switch",
         ]),
         pack("party", "A birthday party", [
             "balloons", "the cake|cake", "candles", "paper plates|plates", "juice", "party games|games",
-            "gifts|presents", "music", "napkins", "invitations|invites", "streamers|decorations", "ice cream",
+            "gifts|gifts|presents", "music", "napkins", "invitations|invitations|invites", "streamers|streamers|decorations", "ice cream",
         ]),
         pack("doctor", "Questions for the doctor", [
-            "blood pressure", "sleep", "vitamin D|vitamin", "knee pain|knee", "eye test|eyes",
-            "flu shot|flu|vaccine", "cholesterol", "diet", "exercise", "prescription refill|prescription|refill",
+            "blood pressure", "sleep", "vitamin D|vitamin D|vitamin", "knee pain|knee", "eye test|eye test|eyes",
+            "flu shot|flu shot|flu|vaccine", "cholesterol", "diet", "exercise", "prescription refill|prescription|refill",
         ]),
         pack("southasia", "The countries of South Asia", [
-            "Pakistan", "India", "Bangladesh", "Nepal", "Bhutan", "Sri Lanka", "the Maldives|maldives", "Afghanistan",
+            "Pakistan", "India", "Bangladesh", "Nepal", "Bhutan", "Sri Lanka", "the Maldives|Maldives", "Afghanistan",
         ]),
         pack("spices", "The spice cabinet", [
-            "cumin|zeera", "turmeric|haldi", "cardamom|elaichi", "cinnamon|darchini", "cloves|laung",
-            "coriander seeds|coriander", "fennel|saunf", "mustard seeds|mustard", "nutmeg", "saffron", "bay leaves|bay leaf",
+            "cumin|cumin|zeera", "turmeric|turmeric|haldi", "cardamom|cardamom|elaichi", "cinnamon|cinnamon|darchini", "cloves|cloves|laung",
+            "coriander seeds|coriander", "fennel|fennel|saunf", "mustard seeds|mustard", "nutmeg", "saffron", "bay leaves|bay leaf",
             "black pepper|pepper",
         ]),
         pack("garden", "Planting the garden", [
-            "roses", "jasmine|motia", "mint", "tomato plants|tomatoes", "chillies", "marigolds|genda", "basil",
-            "a lemon tree|lemon", "sunflowers", "lavender", "aloe vera|aloe", "bougainvillea",
+            "roses", "jasmine|jasmine|motia", "mint", "tomato plants|tomatoes", "chillies", "marigolds|marigolds|genda", "basil",
+            "a lemon tree|lemon tree|lemon", "sunflowers", "lavender", "aloe vera|aloe", "bougainvillea",
         ]),
         pack("istanbul", "A day in Istanbul", [
-            "the Blue Mosque|blue mosque", "Hagia Sophia", "the Grand Bazaar|grand bazaar|bazaar", "a Bosphorus cruise|bosphorus|cruise",
-            "Topkapi Palace|topkapi", "Galata Tower|galata", "the Spice Bazaar|spice bazaar", "the Basilica Cistern|cistern",
-            "the Princes' Islands|princes islands|islands", "Istiklal Street|istiklal",
+            "the Blue Mosque|Blue Mosque", "Hagia Sophia", "the Grand Bazaar|Grand Bazaar|bazaar", "a Bosphorus cruise|Bosphorus cruise|bosphorus|cruise",
+            "Topkapi Palace|Topkapi Palace|topkapi", "Galata Tower|Galata Tower|galata", "the Spice Bazaar|Spice Bazaar", "the Basilica Cistern|Basilica Cistern|cistern",
+            "the Princes' Islands|Princes' Islands|princes islands|islands", "Istiklal Street|Istiklal Street|istiklal",
         ]),
     ]
 
     static let scenes = [
-        "A giant {item} is squeezed onto the {stop} — feel how heavy it is.",
+        "Picture {item} squeezed onto the {stop} — feel how heavy it is.",
         "The {stop} has turned completely into {item}. Touch it.",
-        "{Item} bursts out of the {stop} with a loud bang.",
-        "{mascot} is juggling {item} on top of the {stop}.",
-        "A tiny {item} is dancing and singing on the {stop}.",
-        "The {stop} is buried under a mountain of {item}.",
-        "{Item} is on fire on the {stop} — smell the smoke!",
-        "The {stop} is dripping wet with {item}; it's sticky and cold.",
+        "{Item} bursting out of the {stop} with a loud bang.",
+        "{mascot} juggling {item} on top of the {stop}.",
+        "{Item} dancing and singing on the {stop}.",
+        "The {stop} buried under a mountain of {item}.",
+        "{Item} on fire on the {stop} — smell the smoke!",
+        "The {stop} dripping with {item}, sticky and cold.",
     ]
 
     /// Picks a pack for the day (weekly chapters rotate through them) and the items to carry.

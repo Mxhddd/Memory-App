@@ -125,6 +125,8 @@ final class EngineV2Tests: XCTestCase {
         let s = DayRecall.score(entry: e, answer: "I had lunch with Hira, and watched cricket in the evening")
         XCTAssertEqual(s.recalled, 2)
         XCTAssertEqual(DayRecall.score(entry: e, answer: "").recalled, 0)
+        XCTAssertTrue(DayRecall.recalled(note: "Rain started at dinner", in: "it rained"), "word forms count")
+        XCTAssertFalse(DayRecall.recalled(note: "Bought new running shoes", in: "shoes"), "one word of four is not the gist")
     }
 
     func testGatheringPeopleAreDistinctAndRebuildable() throws {
@@ -172,7 +174,8 @@ final class EngineV2Tests: XCTestCase {
     func testNumberVaultUnlocksPegsInOrderAndUsesOnlyKnownOnes() throws {
         XCTAssertEqual(NumberVault.studyBatch(stability: [:]), Array(0..<10))
         var st: [Int: Double] = [:]
-        for n in 0..<8 { st[n] = 3 }
+        for n in 0..<8 { st[n] = 5 }
+        XCTAssertEqual(NumberVault.studyBatch(stability: Dictionary(uniqueKeysWithValues: (0..<10).map { ($0, 2.3) })), Array(0..<10), "one correct answer isn't enough")
         XCTAssertEqual(NumberVault.studyBatch(stability: st), Array(10..<20), "8 of 10 known moves on")
         XCTAssertTrue(NumberVault.acceptsPeg("sofa", for: 8))
         XCTAssertTrue(NumberVault.acceptsPeg("cat", for: 71), "your own word that encodes to 71")

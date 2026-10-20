@@ -182,13 +182,19 @@ public enum DayRecall {
             .filter { $0.count >= 3 && !stop.contains($0) }
     }
 
-    /// A note counts as recalled when at least half of its keywords (at least one) appear in the answer.
+    /// Same word, a typo of it, or another form of it ("rain" / "rained").
+    static func sameWord(_ a: String, _ b: String) -> Bool {
+        AnswerMatch.matches(a, b) || (a.count >= 4 && b.hasPrefix(a)) || (b.count >= 4 && a.hasPrefix(b))
+    }
+
+    /// A note counts as recalled when at least a third of its keywords (at least one) come back —
+    /// the gist, not the exact wording.
     public static func recalled(note: String, in answer: String) -> Bool {
         let want = keywords(note)
         guard !want.isEmpty else { return false }
         let have = keywords(answer)
-        let hits = want.filter { w in have.contains { AnswerMatch.matches($0, w) } }.count
-        return hits * 2 >= want.count && hits >= 1
+        let hits = want.filter { w in have.contains { sameWord($0, w) } }.count
+        return hits >= 1 && hits * 3 >= want.count
     }
 
     public static func score(entry: DayEntry, answer: String) -> (recalled: Int, total: Int) {

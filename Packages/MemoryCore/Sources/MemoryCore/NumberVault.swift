@@ -18,8 +18,9 @@ public enum NumberVault {
     public static let batchSize = 10
     /// A batch counts as learned once this many of its pegs are recalled at a day's distance.
     public static let learnedPerBatch = 8
-    /// Days of FSRS stability that mark a peg as "known".
-    public static let knownStability = 2.0
+    /// Days of FSRS stability that mark a peg as "known". A first correct answer gives about 2.3
+    /// days, so a peg must also survive a later review before it counts.
+    public static let knownStability = 4.0
 
     /// Which pegs to study now: the first batch whose pegs aren't yet known, and the batch after
     /// it only once the current one is mostly learned.
