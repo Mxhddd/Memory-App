@@ -21,16 +21,22 @@ struct TodayView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 18) {
-                header
-                sessionCard
-                courseCard
-                nextIntentionCard
-                weekCard
+            VStack(spacing: 0) {
+                hero
+                VStack(spacing: 22) {
+                    greetingBlock
+                    trail
+                    nextIntentionCard
+                    levelsRow
+                    weekRow
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 24)
             }
-            .padding(16)
         }
+        .ignoresSafeArea(edges: .top)
         .background(ThemedBackground())
+        .toolbarBackground(.hidden, for: .navigationBar)
         .navigationTitle(theme.copy.appTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -69,59 +75,54 @@ struct TodayView: View {
 
     // MARK: Sections
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            MascotView(mood: mood, size: 112)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(mood == .sleepy ? theme.copy.napLine
-                     : theme.copy.greeting(name: profile.displayName, mascot: profile.mascotName,
-                                           hour: Calendar.current.component(.hour, from: Date())))
-                    .font(theme.body)
-                    .foregroundStyle(theme.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                Label("\(profile.shinies) \(theme.copy.shinyName)", systemImage: "sparkles")
-                    .font(theme.caption.weight(.semibold))
+    private var stage: Int { DenGrowth.stage(activeDaysLast28: Quest.activeDays(last: 28)) }
+
+    /// The room, with today's course day in the corner.
+    private var hero: some View {
+        let course = Quest.courseDay(profile)
+        return RoomSceneView(stage: stage, mood: mood)
+            .overlay(alignment: .topTrailing) {
+                Text("Day \(course.day) of \(Course.length)")
+                    .font(theme.display(24))
                     .foregroundStyle(theme.ornament)
+                    .padding(.top, 104)
+                    .padding(.trailing, 18)
+                    .accessibilityLabel("Course day \(course.day) of \(Course.length)")
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var sessionCard: some View {
-        let done = steps.filter(\.done).count
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(theme.copy.questTitle).font(theme.display(28)).foregroundStyle(theme.text)
-                Spacer()
-                Text("~\(profile.dailyMinutes) min").font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Capsule().fill(theme.accent.opacity(0.3)))
-                    .foregroundStyle(theme.text)
+    private var greetingBlock: some View {
+        let todo = steps.filter { !$0.done }.count
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(mood == .sleepy ? theme.copy.napLine
+                 : theme.copy.greeting(name: profile.displayName, mascot: profile.mascotName,
+                                       hour: Calendar.current.component(.hour, from: Date())))
+                .font(theme.display(26))
+                .foregroundStyle(theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text("\(theme.copy.questTitle) · \(todo == 0 && !steps.isEmpty ? "done" : "~\(profile.dailyMinutes) min") · \(profile.shinies) \(theme.copy.shinyName)")
+                .font(theme.caption)
+                .foregroundStyle(theme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, -6)
+    }
+
+    /// Today's steps as stepping stones on a winding path, not rows in a box.
+    private var trail: some View {
+        let next = steps.firstIndex { !$0.done }
+        return VStack(spacing: 18) {
+            TrailPath(count: steps.count, doneCount: steps.filter(\.done).count) { i in
+                let step = steps[i]
+                TrailNode(icon: icon(for: step), title: title(for: step), subtitle: i == next ? "Next · \(subtitle(for: step))" : subtitle(for: step),
+                          state: step.done ? .done : (i == next ? .next : .ahead), leading: i % 2 == 0) { start(step) }
             }
-            ProgressPips(done: done, total: steps.count)
-            ForEach(steps) { step in
-                Button { start(step) } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: step.done ? "checkmark.seal.fill" : icon(for: step))
-                            .font(.title2)
-                            .foregroundStyle(step.done ? theme.success : theme.primary)
-                            .frame(width: 36)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(title(for: step)).font(theme.bodyEmphasis).foregroundStyle(theme.text)
-                            Text(subtitle(for: step)).font(theme.caption).foregroundStyle(theme.secondaryText)
-                        }
-                        Spacer()
-                        if !step.done { Image(systemName: "play.fill").foregroundStyle(theme.primary) }
-                    }
-                    .frame(minHeight: theme.minTouch)
-                    .contentShape(Rectangle())
+            if let n = next {
+                Button { start(steps[n]) } label: {
+                    Label("\(steps.contains(where: \.done) ? "Continue" : "Start") · \(title(for: steps[n]))", systemImage: "play.fill")
                 }
-                .buttonStyle(.plain)
-                .disabled(step.done)
-            }
-            if let next = steps.first(where: { !$0.done }) {
-                Button(done == 0 ? "Start" : "Continue") { start(next) }
-                    .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(PrimaryButtonStyle())
             } else if !steps.isEmpty {
                 Text(theme.copy.celebrations.randomElement() ?? "All done!")
                     .font(theme.bodyEmphasis)
@@ -129,22 +130,25 @@ struct TodayView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .themedCard()
     }
 
-    private var courseCard: some View {
-        let course = Quest.courseDay(profile)
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Memory Palace course").font(theme.bodyEmphasis).foregroundStyle(theme.text)
-                Spacer()
-                Text("Day \(course.day) of \(Course.length)").font(theme.caption).foregroundStyle(theme.secondaryText)
-            }
-            ProgressView(value: Double(course.day - 1), total: Double(Course.length)).tint(theme.primary)
-            Text("Words: \(profile.wordLevel) · Digits: \(profile.digitLevel) · n-back: \(profile.nBackLevel)")
-                .font(theme.caption).foregroundStyle(theme.secondaryText)
+    private var levelsRow: some View {
+        HStack(spacing: 0) {
+            level("\(profile.wordLevel)", "words")
+            Rectangle().fill(theme.hairline).frame(width: 1, height: 40)
+            level("\(profile.digitLevel)", "digits")
+            Rectangle().fill(theme.hairline).frame(width: 1, height: 40)
+            level("\(profile.nBackLevel)-back", "n-back")
         }
-        .themedCard(raised: true)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func level(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value).font(theme.display(26)).foregroundStyle(theme.ornament)
+            Text(label).font(.caption).foregroundStyle(theme.secondaryText)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private var nextIntentionCard: some View {
@@ -170,28 +174,28 @@ struct TodayView: View {
                 .buttonStyle(SecondaryButtonStyle())
                 .frame(width: 96)
             }
-            .themedCard()
+            .padding(14)
+            .background(theme.shape(step: 6, radius: 22).fill(theme.raised.opacity(0.7)))
         }
     }
 
-    private var weekCard: some View {
+    private var weekRow: some View {
         let days = Quest.questDays()
         let streak = Quest.weeklyStreak()
-        return HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("This week").font(theme.caption).foregroundStyle(theme.secondaryText)
-                Text("\(days) of 4 days").font(theme.bodyEmphasis).foregroundStyle(theme.text)
-                Text(streak > 0 ? "\(streak)-week streak" : "Weekly goal: 4 days. Missed days never reset anything.")
-                    .font(theme.caption).foregroundStyle(theme.secondaryText)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ForEach(0..<4, id: \.self) { i in
+                    theme.shape(step: 3, radius: 7)
+                        .fill(i < days ? theme.primary : theme.raised)
+                        .frame(width: 14, height: 14)
+                }
+                Text("\(days) of 4 days this week").font(theme.caption.weight(.semibold)).foregroundStyle(theme.text)
             }
-            Spacer()
-            ProgressView(value: Double(min(days, 4)), total: 4)
-                .progressViewStyle(.circular)
-                .tint(theme.primary)
-                .scaleEffect(1.4)
-                .accessibilityLabel("\(days) of 4 days this week")
+            Text(streak > 0 ? "\(streak)-week streak" : "Weekly goal: 4 days. Missed days never reset anything.")
+                .font(.caption).foregroundStyle(theme.secondaryText)
         }
-        .themedCard()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Actions
@@ -298,4 +302,108 @@ struct CelebrationSheet: View {
 
 extension Array {
     subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
+}
+
+// MARK: Trail
+
+/// Lays nodes out on alternating sides of a dashed, winding path; the walked part is solid.
+struct TrailPath<Node: View>: View {
+    @Environment(\.theme) private var theme
+    let count: Int
+    let doneCount: Int
+    @ViewBuilder let node: (Int) -> Node
+
+    static var rowHeight: CGFloat { 104 }
+
+    var body: some View {
+        GeometryReader { geo in
+            let pts = points(width: geo.size.width)
+            ZStack(alignment: .topLeading) {
+                path(pts).stroke(theme.hairline, style: StrokeStyle(lineWidth: theme.pixelBorders ? 4 : 1.5, lineCap: .round, dash: theme.pixelBorders ? [6, 6] : [3, 5]))
+                path(Array(pts.prefix(doneCount + 1))).stroke(theme.primary.opacity(0.7), style: StrokeStyle(lineWidth: theme.pixelBorders ? 4 : 2, lineCap: .round, dash: theme.pixelBorders ? [6, 6] : []))
+                ForEach(0..<count, id: \.self) { i in
+                    node(i)
+                        .frame(width: geo.size.width, height: Self.rowHeight)
+                        .offset(y: pts[i].y - Self.rowHeight / 2)
+                }
+            }
+        }
+        .frame(height: CGFloat(count) * Self.rowHeight)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func points(width: CGFloat) -> [CGPoint] {
+        (0..<count).map { CGPoint(x: $0 % 2 == 0 ? 44 : width - 44, y: Self.rowHeight / 2 + CGFloat($0) * Self.rowHeight) }
+    }
+
+    private func path(_ pts: [CGPoint]) -> Path {
+        var p = Path()
+        guard let first = pts.first else { return p }
+        p.move(to: first)
+        for (a, b) in zip(pts, pts.dropFirst()) {
+            p.addCurve(to: b, control1: CGPoint(x: a.x, y: a.y + 62), control2: CGPoint(x: b.x, y: b.y - 62))
+        }
+        return p
+    }
+}
+
+/// One stepping stone: a diamond (Den) or medallion (Atelier), with its label beside it.
+struct TrailNode: View {
+    enum Phase { case done, next, ahead }
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let icon: String
+    let title: String
+    let subtitle: String
+    let state: Phase
+    let leading: Bool
+    let action: () -> Void
+    @State private var pulse = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                if leading { stone; labels(.leading); Spacer(minLength: 0) } else { Spacer(minLength: 0); labels(.trailing); stone }
+            }
+            .padding(.horizontal, 44 - size / 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(state == .done)
+        .accessibilityLabel("\(title). \(subtitle)\(state == .done ? ". Done" : "")")
+        .onAppear {
+            guard state == .next, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) { pulse = true }
+        }
+    }
+
+    private var size: CGFloat { state == .next ? 64 : state == .done ? 40 : 48 }
+
+    private var stone: some View {
+        let fill: Color = state == .next ? theme.primary : state == .done ? theme.success.opacity(theme.pixelBorders ? 1 : 0.85) : theme.raised
+        let fg: Color = state == .ahead ? theme.secondaryText : theme.onPrimary
+        return ZStack {
+            if theme.pixelBorders {
+                Rectangle().fill(fill).rotationEffect(.degrees(45)).frame(width: size * 0.72, height: size * 0.72)
+            } else {
+                Circle().fill(fill)
+                    .shadow(color: state == .next ? theme.primary.opacity(0.3) : .clear, radius: 10, y: 6)
+                if state == .ahead { Circle().stroke(theme.ornament.opacity(0.6), lineWidth: 1) }
+            }
+            Image(systemName: state == .done ? "checkmark" : state == .next ? "play.fill" : icon)
+                .font(.system(size: size * 0.34, weight: .bold))
+                .foregroundStyle(state == .done && theme.pixelBorders ? Color(hex: 0x17121F) : fg)
+        }
+        .frame(width: size, height: size)
+        .scaleEffect(pulse ? 1.06 : 1)
+        .accessibilityHidden(true)
+    }
+
+    private func labels(_ align: HorizontalAlignment) -> some View {
+        VStack(alignment: align, spacing: 2) {
+            Text(title).font(theme.bodyEmphasis).foregroundStyle(state == .done ? theme.secondaryText : theme.text)
+            Text(subtitle).font(.caption).foregroundStyle(theme.secondaryText).lineLimit(2)
+        }
+        .multilineTextAlignment(align == .leading ? .leading : .trailing)
+    }
 }

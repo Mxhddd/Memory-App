@@ -35,7 +35,7 @@ struct SequencesGame: View {
                     Button {
                         tap(cell)
                     } label: {
-                        RoundedRectangle(cornerRadius: theme.cornerRadius)
+                        theme.shape(step: 6, radius: 18)
                             .fill(cellColor(cell))
                             .aspectRatio(1, contentMode: .fit)
                             .overlay {
@@ -45,7 +45,6 @@ struct SequencesGame: View {
                                         .foregroundStyle(theme.id == .midnightRaccoon ? Color(hex: 0x17121F) : theme.onPrimary)
                                 }
                             }
-                            .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius).strokeBorder(theme.outline.opacity(0.7), lineWidth: theme.pixelBorders ? 3 : 1))
                     }
                     .disabled(showing)
                     .accessibilityLabel("Cell \(cell + 1)")
@@ -149,7 +148,7 @@ struct StashGame: View {
                 ForEach(0..<(side * side), id: \.self) { cell in
                     Button { choose(cell) } label: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: theme.cornerRadius).fill(fill(cell))
+                            theme.shape(step: 6, radius: 18).fill(fill(cell))
                             if studying, let p = placements.first(where: { $0.cell == cell }) {
                                 StashItemView(placement: p, size: 44)
                             }
@@ -158,7 +157,6 @@ struct StashGame: View {
                             }
                         }
                         .aspectRatio(1, contentMode: .fit)
-                        .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius).strokeBorder(theme.outline.opacity(0.7), lineWidth: theme.pixelBorders ? 3 : 1))
                     }
                     .disabled(studying || picked != nil)
                     .accessibilityLabel("Spot \(cell + 1)")

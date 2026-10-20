@@ -11,8 +11,9 @@ struct ProgressScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 18) {
-                denShelf
+            RoomSceneView(stage: stage, mood: stage >= 3 ? .happy : .idle)
+            VStack(spacing: 22) {
+                treasures
                 bestsCard
                 benchmarkCard(report.wordRecall)
                 benchmarkCard(report.digitSpan)
@@ -33,59 +34,69 @@ struct ProgressScreen: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(16)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 24)
         }
+        .ignoresSafeArea(edges: .top)
         .background(ThemedBackground())
+        .toolbarBackground(.hidden, for: .navigationBar)
         .navigationTitle("Progress")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear { report = Insights.report() }
     }
 
-    private var denShelf: some View {
-        let stage = DenGrowth.stage(activeDaysLast28: report.activeDays28)
-        let unlocked = min(profile.shinies / 5, 16)
-        return VStack(spacing: 10) {
-            HStack(alignment: .bottom) {
-                MascotView(mood: stage >= 3 ? .happy : .idle, size: 96)
-                VStack(alignment: .leading, spacing: 6) {
-                    shelf(Array(0..<min(unlocked, 8)))
-                    shelf(Array(8..<max(8, unlocked)))
-                }
-            }
-            Text("\(report.activeDays28) training days in the last 4 weeks · \(report.weeklyStreak)-week streak")
-                .font(theme.caption).foregroundStyle(theme.secondaryText)
-        }
-        .themedCard()
-    }
+    private var stage: Int { DenGrowth.stage(activeDaysLast28: report.activeDays28) }
 
-    private func shelf(_ indices: [Int]) -> some View {
-        HStack(spacing: 4) {
-            ForEach(0..<8, id: \.self) { slot in
-                Group {
-                    if slot < indices.count, let art = Sprites.trinkets[Sprites.trinketOrder[indices[slot] % Sprites.trinketOrder.count]] {
-                        PixelSpriteView(art: art)
+    private var treasures: some View {
+        let unlocked = min(profile.shinies / 5, 16)
+        let atelier = theme.id == .gildedAtelier
+        let next = RoomScene.next(atelier: atelier, stage: stage)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("\(atelier ? "Your gallery" : "Your den") grows as you train: \(report.activeDays28) of 16 days in the last 4 weeks. "
+                 + (next.map { "Next to arrive: \($0)." } ?? "Fully furnished — keep it that way."))
+                .font(theme.body).foregroundStyle(theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Treasures").font(theme.bodyEmphasis).foregroundStyle(theme.text).accessibilityAddTraits(.isHeader)
+                Spacer()
+                Text("\(unlocked) of 16 · next at \(min(unlocked + 1, 16) * 5) \(theme.copy.shinyName)")
+                    .font(.caption).foregroundStyle(theme.secondaryText)
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8), spacing: 6) {
+                ForEach(0..<16, id: \.self) { k in
+                    if k < unlocked, let art = Sprites.trinkets[Sprites.trinketOrder[k % Sprites.trinketOrder.count]] {
+                        PixelSpriteView(art: art).aspectRatio(1, contentMode: .fit)
                     } else {
-                        RoundedRectangle(cornerRadius: 3).strokeBorder(theme.outline.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [3]))
+                        Group {
+                            if theme.pixelBorders { PixelCornerShape(step: 3).fill(theme.raised) }
+                            else { Circle().fill(theme.raised).padding(10) }
+                        }
+                        .aspectRatio(1, contentMode: .fit)
                     }
                 }
-                .frame(width: 26, height: 26)
             }
+            .accessibilityElement()
+            .accessibilityLabel("\(unlocked) of 16 treasures")
+            Text(report.weeklyStreak > 0 ? "\(report.weeklyStreak)-week streak · \(profile.shinies) \(theme.copy.shinyName) earned"
+                                         : "Weekly goal: 4 days · \(profile.shinies) \(theme.copy.shinyName) earned")
+                .font(theme.caption).foregroundStyle(theme.secondaryText)
         }
-        .accessibilityElement()
-        .accessibilityLabel("\(indices.count) treasures")
+        .padding(.top, 4)
     }
 
     private var bestsCard: some View {
         HStack {
-            stat("\(report.bestWordSprint)", "words in\na sprint")
-            stat("\(report.bestDigitSprint)", "digits in\na sprint")
-            stat(report.bestNBack > 0 ? "\(report.bestNBack)" : "–", "best\nn-back")
+            stat(report.bestWordSprint > 0 ? "\(report.bestWordSprint)" : "–", "words in\na sprint")
+            Rectangle().fill(theme.hairline).frame(width: 1, height: 48)
+            stat(report.bestDigitSprint > 0 ? "\(report.bestDigitSprint)" : "–", "digits in\na sprint")
+            Rectangle().fill(theme.hairline).frame(width: 1, height: 48)
+            stat(report.bestNBack > 0 ? "\(report.bestNBack)-back" : "–", "best\nn-back")
         }
-        .themedCard()
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
         VStack(spacing: 4) {
-            Text(value).font(theme.display(30)).foregroundStyle(theme.text)
+            Text(value).font(theme.display(30)).foregroundStyle(theme.ornament)
             Text(label).font(.caption).foregroundStyle(theme.secondaryText).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

@@ -87,8 +87,8 @@ struct OnboardingFlow: View {
                         Image(systemName: theme == id ? "checkmark.circle.fill" : "circle").font(.title2).foregroundStyle(t.primary)
                     }
                     .padding(16)
-                    .background(RoundedRectangle(cornerRadius: t.cornerRadius).fill(t.surface))
-                    .overlay(RoundedRectangle(cornerRadius: t.cornerRadius).strokeBorder(theme == id ? t.primary : t.outline.opacity(0.4), lineWidth: 3))
+                    .background(t.shape().fill(t.surface))
+                    .overlay(t.shape().stroke(theme == id ? t.primary : .clear, lineWidth: 3))
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(theme == id ? .isSelected : [])

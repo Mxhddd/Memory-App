@@ -184,4 +184,24 @@ final class SpriteTests: XCTestCase {
             for row in art.rows { for ch in row where ch != "." { XCTAssertNotNil(art.palette[ch], "\(name): colour \(ch)") } }
         }
     }
+
+    func testRoomPropsHaveSpritesAndGrowWithStage() {
+        for atelier in [false, true] {
+            var previous = 0
+            for stage in 0...5 {
+                let props = RoomScene.props(atelier: atelier, stage: stage)
+                XCTAssertGreaterThanOrEqual(props.count, previous)
+                previous = props.count
+                for p in props {
+                    guard let art = Sprites.sceneProps[p.key] else { return XCTFail("no sprite for \(p.key)") }
+                    for row in art.rows { XCTAssertEqual(row.count, art.width, p.key); for ch in row where ch != "." { XCTAssertNotNil(art.palette[ch], "\(p.key): colour \(ch)") } }
+                }
+            }
+            XCTAssertEqual(RoomScene.props(atelier: atelier, stage: 0).count, 1)
+            XCTAssertNil(RoomScene.next(atelier: atelier, stage: 5))
+            XCTAssertNotNil(RoomScene.next(atelier: atelier, stage: 0))
+        }
+        XCTAssertEqual(RoomScene.props(atelier: false, stage: 5).count, 7)
+        XCTAssertEqual(RoomScene.props(atelier: true, stage: 5).count, 8)
+    }
 }

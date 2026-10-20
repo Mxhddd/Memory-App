@@ -36,10 +36,9 @@ struct DualNBackGame: View {
             } else {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                     ForEach(0..<9, id: \.self) { cell in
-                        RoundedRectangle(cornerRadius: theme.cornerRadius)
+                        theme.shape(step: 6, radius: 18)
                             .fill(lit == cell ? theme.primary : theme.surface)
                             .aspectRatio(1, contentMode: .fit)
-                            .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius).strokeBorder(theme.outline.opacity(0.6), lineWidth: theme.pixelBorders ? 3 : 1))
                             .accessibilityHidden(true)
                     }
                 }
