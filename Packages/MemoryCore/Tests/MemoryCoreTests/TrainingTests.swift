@@ -204,4 +204,18 @@ final class SpriteTests: XCTestCase {
         XCTAssertEqual(RoomScene.props(atelier: false, stage: 5).count, 7)
         XCTAssertEqual(RoomScene.props(atelier: true, stage: 5).count, 8)
     }
+
+    func testPalaceMapSnakesSoNeighboursTouch() {
+        let map = PalaceMap(count: 10)
+        XCTAssertEqual(map.tiles.map(\.column), [0, 1, 2, 3, 3, 2, 1, 0, 0, 1])
+        XCTAssertEqual(map.tiles.map(\.row), [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+        for (a, b) in zip(map.tiles, map.tiles.dropFirst()) {
+            XCTAssertEqual(abs(a.row - b.row) + abs(a.column - b.column), 1, "stop \(b.index) is not next to \(a.index)")
+        }
+        XCTAssertEqual(map.width, 332)
+        XCTAssertEqual(map.height, 266)
+        XCTAssertEqual(map.scroll(toward: 0, viewport: 190), 0)
+        XCTAssertEqual(map.scroll(toward: 9, viewport: 190), 76)
+        XCTAssertEqual(PalaceMap(count: 0).height, 0)
+    }
 }

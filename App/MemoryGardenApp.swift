@@ -88,6 +88,8 @@ struct RootView: View {
                 MainTabView(profile: profile)
                     .environment(\.theme, Theme.forID(profile.theme))
                     .preferredColorScheme(Theme.forID(profile.theme).colorScheme)
+                    .onAppear { SFX.theme = profile.theme }
+                    .onChange(of: profile.theme) { _, new in SFX.theme = new }
             } else {
                 OnboardingFlow(existing: profiles.first)
                     .environment(\.theme, Theme.forID(profiles.first?.theme ?? .midnightRaccoon))

@@ -87,6 +87,13 @@ struct PalaceEditor: View {
             } footer: {
                 Text("Pick distinct places in the order you'd walk past them. Aim for 10 to start and 20+ later.")
             }
+            if stops.count >= 2 {
+                Section("The route as you'll walk it") {
+                    PalaceMapView(stops: stops, walker: false, viewport: 2000)
+                        .padding(.vertical, 8)
+                        .listRowBackground(Color.clear)
+                }
+            }
             if stops.isEmpty {
                 Section {
                     Button("Start from a typical home route") { stops = Self.homeSuggestions }

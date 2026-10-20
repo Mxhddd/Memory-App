@@ -31,6 +31,7 @@ struct SequentialRecall: View {
     @Environment(\.theme) private var theme
     let labels: [String]            // what each position is cued by ("Stop 3 · Sofa")
     let keyboard: UIKeyboardType
+    var mapStops: [String]? = nil   // when set, answers appear on the palace map instead of a list
     let onDone: ([String]) -> Void
 
     @State private var answers: [String] = []
@@ -39,7 +40,13 @@ struct SequentialRecall: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            GameHeader(title: "Walk your route and recall", progress: (answers.count, labels.count))
+            GameHeader(title: "Walk your route and recall", progress: mapStops == nil ? (answers.count, labels.count) : nil)
+            if let mapStops {
+                PalaceMapView(stops: mapStops, current: min(answers.count, mapStops.count - 1),
+                              marks: Dictionary(uniqueKeysWithValues: answers.enumerated().map { ($0.offset, $0.element.isEmpty ? PalaceMapView.Mark.missed : PalaceMapView.Mark.placed) }),
+                              labels: Dictionary(uniqueKeysWithValues: answers.enumerated().map { ($0.offset, $0.element.isEmpty ? "—" : $0.element) }),
+                              viewport: 200)
+            }
             if answers.count < labels.count {
                 Text(labels[answers.count])
                     .font(theme.display(28))
@@ -55,14 +62,14 @@ struct SequentialRecall: View {
                     .submitLabel(.next)
                     .onSubmit(next)
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: theme.cornerRadius).fill(theme.surface))
+                    .background(theme.shape(step: 6, radius: 18).fill(theme.surface))
                     .foregroundStyle(theme.text)
                 HStack {
                     Button("Skip") { current = ""; next() }.buttonStyle(SecondaryButtonStyle())
                     Button("Next") { next() }.buttonStyle(PrimaryButtonStyle())
                 }
             }
-            if !answers.isEmpty {
+            if !answers.isEmpty && mapStops == nil {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(Array(answers.enumerated()), id: \.offset) { i, a in
@@ -99,6 +106,12 @@ struct WordSprintGame: View {
 
     private var words: [String] { WordBank.sprint(count: ctx.size, seed: ctx.seed) }
 
+    /// The palace stops this sprint walks, or nil without a palace.
+    private var mapStops: [String]? {
+        guard let palace, palace.stops.count >= words.count else { return nil }
+        return Array(palace.stops.prefix(words.count))
+    }
+
     private func stopName(_ i: Int) -> String {
         if let palace, i < palace.stops.count { return "Stop \(i + 1) · \(palace.stops[i])" }
         return "Item \(i + 1)"
@@ -107,7 +120,7 @@ struct WordSprintGame: View {
     var body: some View {
         VStack(spacing: 18) {
             if recalling || retention {
-                SequentialRecall(labels: words.indices.map(stopName), keyboard: .default) { answers in
+                SequentialRecall(labels: words.indices.map(stopName), keyboard: .default, mapStops: mapStops) { answers in
                     let s = Loci.scoreWords(recalled: answers, targets: words)
                     onFinish(GameOutcome(correct: s.inPlace, total: s.total, meanRTms: 0, score: s.accuracy, level: ctx.size))
                 }
@@ -115,6 +128,12 @@ struct WordSprintGame: View {
                 HStack {
                     GameHeader(title: palace.map { "Place each word along \($0.name)" } ?? "Picture each word vividly", progress: (index + 1, words.count))
                     EncodeTimer(seconds: Course.encodingSeconds(kind: .wordSprint, size: words.count)) { recalling = true }
+                }
+                if let mapStops {
+                    PalaceMapView(stops: mapStops, current: index,
+                                  marks: Dictionary(uniqueKeysWithValues: (0..<index).map { ($0, PalaceMapView.Mark.placed) }),
+                                  labels: Dictionary(uniqueKeysWithValues: (0..<index).map { ($0, "•") }),
+                                  viewport: 190)
                 }
                 Spacer()
                 Text(stopName(index)).font(theme.bodyEmphasis).foregroundStyle(theme.secondaryText)
@@ -187,7 +206,7 @@ struct NumberSprintGame: View {
                     .multilineTextAlignment(.center)
                     .focused($focused)
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: theme.cornerRadius).fill(theme.surface))
+                    .background(theme.shape(step: 6, radius: 18).fill(theme.surface))
                     .foregroundStyle(theme.text)
                 Text(MajorSystem.chunks(answer.filter(\.isNumber)).joined(separator: " "))
                     .font(theme.bodyEmphasis.monospacedDigit()).foregroundStyle(theme.secondaryText)
@@ -218,10 +237,17 @@ struct RouteWalkGame: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            GameHeader(title: "Tap \(palace.name)'s stops in order", progress: (placed.count, palace.stops.count))
-            if let next = placed.last {
-                Text("Last: \(next)").font(theme.caption).foregroundStyle(theme.secondaryText)
+            GameHeader(title: "Tap \(palace.name)'s stops in order", progress: nil)
+            HStack {
+                Text(placed.count < palace.stops.count ? "Which is stop \(placed.count + 1)?" : "Walked the whole route")
+                    .font(theme.bodyEmphasis).foregroundStyle(theme.text)
+                Spacer()
+                Text(mistakes == 0 ? "No slips" : "\(mistakes) slip\(mistakes == 1 ? "" : "s")")
+                    .font(.caption.weight(.bold)).foregroundStyle(theme.ornament)
             }
+            PalaceMapView(stops: palace.stops, current: min(placed.count, palace.stops.count - 1),
+                          marks: Dictionary(uniqueKeysWithValues: placed.indices.map { ($0, PalaceMapView.Mark.correct) }),
+                          hideAhead: true, viewport: 200)
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     ForEach(order.filter { !placed.contains($0) }, id: \.self) { stop in

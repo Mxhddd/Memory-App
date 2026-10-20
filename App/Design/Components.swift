@@ -281,8 +281,10 @@ final class Speech {
 
 @MainActor
 enum SFX {
-    enum Sound: String { case correct, gentle, levelup, shiny, bell }
+    enum Sound: String { case correct, gentle, levelup, shiny, bell, tap }
 
+    /// Which look's voice to use: chiptune for the Den, plucked strings and bells for the Atelier.
+    static var theme: ThemeID = .midnightRaccoon { didSet { if oldValue != theme { players = [:] } } }
     private static var players: [Sound: AVAudioPlayer] = [:]
     static var enabled: Bool { UserDefaults.standard.object(forKey: "sfxEnabled") as? Bool ?? true }
 
@@ -290,11 +292,17 @@ enum SFX {
         guard enabled else { return }
         // .ambient: respects the silent switch and mixes with music.
         try? AVAudioSession.sharedInstance().setCategory(.ambient)
-        if players[sound] == nil, let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "wav") {
+        if players[sound] == nil, let url = url(for: sound) {
             players[sound] = try? AVAudioPlayer(contentsOf: url)
         }
         players[sound]?.currentTime = 0
         players[sound]?.play()
+    }
+
+    private static func url(for sound: Sound) -> URL? {
+        let suffix = theme == .gildedAtelier ? "atelier" : "den"
+        return Bundle.main.url(forResource: "\(sound.rawValue)-\(suffix)", withExtension: "wav")
+            ?? Bundle.main.url(forResource: sound.rawValue, withExtension: "wav")
     }
 }
 
