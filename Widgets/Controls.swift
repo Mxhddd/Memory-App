@@ -32,14 +32,9 @@ struct ReviewCardControl: ControlWidget {
 struct ReminderDoneControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.mxhddd.memorygarden.control.reminder", provider: NextReminderValue()) { next in
-            if let next, let id = UUID(uuidString: next.id) {
-                ControlWidgetButton(action: ReminderDoneIntent(reminderID: id)) {
-                    Label(next.text, systemImage: "checkmark.circle")
-                }
-            } else {
-                ControlWidgetButton(action: OpenMemoryGardenIntent(route: "reminders")) {
-                    Label("No reminders", systemImage: "bell.slash")
-                }
+            // Control builders can't branch, so one button: with no reminder its id is empty and it does nothing.
+            ControlWidgetButton(action: ReminderDoneIntent(reminderID: next?.id ?? "")) {
+                Label(next?.text ?? "No reminders", systemImage: next == nil ? "bell.slash" : "checkmark.circle")
             }
         }
         .displayName("Reminder done")

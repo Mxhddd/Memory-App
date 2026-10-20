@@ -64,6 +64,7 @@ struct ReminderDoneIntent: AppIntent {
 
     init() {}
     init(reminderID: UUID) { self.reminderID = reminderID.uuidString }
+    init(reminderID: String) { self.reminderID = reminderID }
 
     func perform() async throws -> some IntentResult {
         guard let id = UUID(uuidString: reminderID) else { return .result() }
