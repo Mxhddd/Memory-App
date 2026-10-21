@@ -26,8 +26,7 @@ function inventory() {
   return list;
 }
 
-const svgOf = (a) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${a.w} ${a.h}" width="100%" height="100%" preserveAspectRatio="none"${a.crisp ? ' shape-rendering="crispEdges"' : ''}>` +
-  a.paths.map((p) => `<path d="${p.d}" fill="${p.fill}" stroke="${p.stroke}" stroke-width="${p.sw}" opacity="${p.op}"${p.dash ? ` stroke-dasharray="${p.dash}"` : ''} stroke-linecap="round" stroke-linejoin="round"/>`).join('') + '</svg>';
+const svgOf = (a) => W.toSVG(a).replace('<svg ', '<svg width="100%" height="100%" ').replace('xMidYMid slice', 'none');
 
 function check() {
   const problems = [];

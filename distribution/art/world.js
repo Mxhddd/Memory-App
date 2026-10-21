@@ -593,8 +593,15 @@
   }
   const pictogram = (kind, theme) => { const rows = ICONS[kind] || ICONS.gift; return theme === 'atelier' ? stippleRender(rows, ICON_PAL) : gridRender(rows, ICON_PAL); };
 
+  // SVG text for any rendered picture, and a data: URI for <img src> (cached: rasterising the pixel
+  // scenes takes a few milliseconds each).
+  const toSVG = (a) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${a.w} ${a.h}" preserveAspectRatio="xMidYMid slice"${a.crisp ? ' shape-rendering="crispEdges"' : ''}>` +
+    a.paths.map((p) => `<path d="${p.d}" fill="${p.fill}" stroke="${p.stroke}" stroke-width="${p.sw}" opacity="${p.op}"${p.dash ? ` stroke-dasharray="${p.dash}"` : ''} stroke-linecap="round" stroke-linejoin="round"/>`).join('') + '</svg>';
+  const URI = {};
+  const uri = (key, make) => URI[key] || (URI[key] = 'data:image/svg+xml,' + encodeURIComponent(toSVG(make())).replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/'/g, '%27'));
+
   const World = {
-    MAT, PLACES, MAP_PLACES, render,
+    MAT, PLACES, MAP_PLACES, render, toSVG, uri,
     garden: (theme) => render(gardenScene(), theme),
     stage: (place, theme) => render((STAGES[place] || STAGES.review)(), theme),
     ambient, stamp, rng, hatchLines, MOODS, mascot, mochiGrid, gridRender,
