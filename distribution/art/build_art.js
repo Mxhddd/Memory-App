@@ -22,6 +22,7 @@ function inventory() {
     for (const m of W.MOODS) { const a = W.mascot(t, m); add(`mascot-${m}-${t}`, a, 112 / a.w); }
     for (const k of Object.keys(W.ICONS)) add(`icon-${k}-${t}`, W.pictogram(k, t), 3);
     for (const k of ['ok', 'again', 'miss']) add(`stamp-${k}-${t}`, W.stamp(k, t), 2);
+    for (const f of ['rose', 'indigo', 'amber', 'teal']) for (let st = 0; st <= 4; st++) add(`plant-${f}-${st}-${t}`, W.plant(st, f, t), 3);
   }
   return list;
 }

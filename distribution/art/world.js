@@ -398,6 +398,26 @@
   };
   STAGES.review = () => { const s = gardenScene(); return { w: s.w, h: s.h, shapes: s.shapes }; };
 
+  // ───────────── greenhouse plants (24 × 32 cells) ─────────────
+  // A measure's plant grows through five stages: 0 seed, 1 sprout, 2 leaves, 3 bud, 4 bloom.
+  function plantScene(stage, flower) {
+    const shapes = [], cx = 12;
+    shapes.push(P([[5, 24], [19, 24], [17, 31], [7, 31]], 'terracotta', { shade: 'right' }), R(4, 22.5, 16, 2.4, 'terracotta', { shade: 'bottom', lightTop: true }));
+    shapes.push(E(cx, 22.6, 6.5, 1, 'trunk', { noInk: true }));
+    if (stage <= 0) { shapes.push(E(cx, 21.6, 1.3, 0.9, 'wood', { inkW: 0.25 })); return { w: 24, h: 32, shapes }; }
+    const top = [20, 15, 11, 7][Math.min(stage, 4) - 1];
+    shapes.push(L([[cx, 22], [cx, top + 1]], 'foliage', 0.9, { atW: 0.45 }));
+    if (stage >= 1) shapes.push(E(cx - 2, top + 2, 2, 1.1, 'sage', { inkW: 0.3 }), E(cx + 2, top + 2.4, 2, 1.1, 'foliage', { inkW: 0.3 }));
+    if (stage >= 2) shapes.push(E(cx - 3.4, 17, 3, 1.5, 'foliage', { shade: 'bottom', inkW: 0.3 }), E(cx + 3.4, 15, 3, 1.5, 'sage', { shade: 'bottom', inkW: 0.3 }));
+    if (stage >= 3) shapes.push(E(cx - 3, 12, 2.6, 1.3, 'sage', { inkW: 0.3 }));
+    if (stage === 3) shapes.push(E(cx, top - 0.5, 1.6, 2.2, flower, { shade: 'right', inkW: 0.3 }));
+    if (stage >= 4) {
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; shapes.push(E(cx + Math.cos(a) * 2.8, top + Math.sin(a) * 2.8, 2.1, 2.1, flower, { shade: 'bottom', shadeFrac: 0.3, inkW: 0.3 })); }
+      shapes.push(E(cx, top, 1.8, 1.8, 'brass', { inkW: 0.3 }));
+    }
+    return { w: 24, h: 32, shapes };
+  }
+
   // ───────────── stamps ─────────────
   function stamp(kind, theme) {
     const den = theme !== 'atelier';
@@ -604,6 +624,7 @@
     MAT, PLACES, MAP_PLACES, render, toSVG, uri,
     garden: (theme) => render(gardenScene(), theme),
     stage: (place, theme) => render((STAGES[place] || STAGES.review)(), theme),
+    plant: (stage, flower, theme) => render(plantScene(stage, flower || 'rose'), theme),
     ambient, stamp, rng, hatchLines, MOODS, mascot, mochiGrid, gridRender,
     ICONS, PACK_ICON, ITEM_ICON, itemIcon, pictogram,
     // Where each place's label sits on the 118 × 100 map (bottom-centre of the building + a gap).

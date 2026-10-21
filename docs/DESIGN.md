@@ -85,6 +85,39 @@ Use "train memory techniques and working memory". Never claim it prevents or tre
 - Spotlight, quick actions and a background day rollover.
 - The app reads its own `embedded.mobileprovision` to warn before the 7-day signature runs out.
 
+## v0.6: a living illustrated world
+
+The whole app is one garden, drawn two ways.
+
+- **The Den (MaoMao)** is the garden at night, in pixel art. It uses palette shading and ordered dithering, with no outlines on scenery.
+- **The Atelier (Salma)** is the same garden in the morning, in ink and wash, with hatching where the shade falls.
+
+Both are drawn from a single description in `distribution/art/world.js` (see its README). The playable canvas draws the art live, and `build_art.js` renders it into `App/Resources/Assets.xcassets/Art` for the iPhone.
+
+- **Six places, each with its own hue.**
+
+  | Place | Game | Hue |
+  | --- | --- | --- |
+  | Palace | Journey | rose |
+  | Hall | Gathering | amber |
+  | Vault | Number Vault | teal |
+  | Kitchen | Kitchen | terracotta |
+  | Tower | Lookout | indigo |
+  | Journal | Day Recall | sage |
+
+  The hue tints that game's stage, badge and stepping stones.
+- **Screen anatomy, in every game.**
+  1. Header: place badge and count.
+  2. Stepping-stone trail.
+  3. Stage: the place's illustration, the mascot and a speech bubble.
+  4. Prompt card, rising over the stage.
+  5. Action dock.
+- **Results land on paper.** Each game ends with its own record: a route receipt, a guest book, a vault ledger, order tickets or a journal page. Stamps mark items right, relearned or missed.
+- **Mascots react, never scold.** Mochi and the Professor each have seven moods: idle, happy, thinking, cheer, oops, sleep and wave. A mood hops on a right answer, wobbles on a slip and floats at rest. Measurement screens stay calm.
+- **Greenhouse.** Progress is shown as plants. A plant grows with practice and blooms only when a change passes the personal reliable-change threshold.
+- **Shelf.** Every ledger item is a card you can flip.
+- **Reduce Motion** turns every animation into a fade.
+
 ## Roadmap
 - Walkable rooms decorated per stop (palace maps currently show stop names).
 - Card memorisation (PAO system).

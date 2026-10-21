@@ -14,6 +14,7 @@ What it draws:
 | Mascots in seven moods: idle, happy, thinking, cheer, oops, sleep, wave | Mochi, pixel | the Professor, ink |
 | 27 pictograms, plus the item → pictogram map | pixels | engraved stipple |
 | Stamps: ok, again, miss | ✓ | ✓ |
+| Greenhouse plants: 5 growth stages × 4 flowers | ✓ | ✓ |
 
 The playable canvas draws the art live from the same file, through `MG.world`. The iPhone app uses PNGs.
 
